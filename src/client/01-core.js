@@ -80,3 +80,111 @@ function kindLabel(kind, translate) {
   const translated = translate('kind.' + kind)
   return translated === 'kind.' + kind ? kind : translated
 }
+
+/** Every failure kind the ledger can produce, in display order. */
+const KINDS = ['error', 'exit', 'signal', 'timeout', 'job-failed', 'job-killed', 'ptc-error']
+
+/**
+ * A codec that accepts any JSON value unchanged.
+ *
+ * The host validates every request and result against its own schemas, so the
+ * client only needs a parse function of the right shape; duplicating those
+ * schemas here would mean two places to keep in step.
+ * @returns The passthrough codec.
+ */
+function jsonCodec() {
+  return codecOf(function pass(value) {
+    return value
+  })
+}
+
+/**
+ * Describe one remote method.
+ * @param method - Method name on the provided service.
+ * @param parameters - Parameter descriptors.
+ * @param resultType - Schema name for the result.
+ * @returns The descriptor.
+ */
+function remoteMethod(method, parameters, resultType) {
+  return { method, parameters, result: strictCodec(resultType, jsonCodec()) }
+}
+
+/**
+ * The client half of the remote contract for `failureLedger`.
+ */
+const CONTRIBUTION = {
+  package: 'dsh-failure-ledger',
+  descriptors: [
+    remoteMethod('getLedger', [rpcParam('query', 'LedgerQuery', jsonCodec(), true), rpcParam('knownRevision', 'Revision', jsonCodec(), true)], 'LedgerResult'),
+    remoteMethod('getGroup', [rpcParam('groupId', 'GroupId', jsonCodec()), rpcParam('limit', 'Limit', jsonCodec(), true)], 'GroupResult'),
+    remoteMethod('refresh', [rpcParam('full', 'Flag', jsonCodec(), true)], 'ScanSummary'),
+    remoteMethod('updatePrefs', [rpcParam('patch', 'PrefsPatch', jsonCodec())], 'UpdatePrefsResult'),
+  ],
+}
+
+/**
+ * Mount the remote contribution and take ownership of its release.
+ * @param ctx - Client context.
+ * @returns The service, or undefined when this host cannot mount remotes.
+ */
+async function mountRemote(ctx) {
+  const remote = ctx.remote
+  if (remote === undefined || typeof remote.$mount !== 'function') return undefined
+  const unmount = await remote.$mount(CONTRIBUTION)
+  ctx.effect(() => () => unmount(), 'failure-ledger: remote contribution')
+  return ctx.get('remote.failureLedger')
+}
+
+/**
+ * Read the ledger, polling while the panel is open.
+ *
+ * `knownRevision` short-circuits grouping on the host, so a poll that finds no
+ * change costs one small request instead of a full regroup.
+ * @param service - `failureLedger` service, or undefined before mounting.
+ * @param query - Ledger query; changing it refetches.
+ * @param options - `intervalMs` between polls; 0 disables polling.
+ * @returns Ledger state plus a `reload()` that forces a refetch.
+ */
+function useLedger(service, query, options) {
+  const intervalMs = options?.intervalMs ?? 5000
+  const [state, setState] = React.useState({ ledger: undefined, error: undefined, loading: true })
+  const [tick, setTick] = React.useState(0)
+  const key = JSON.stringify(query ?? {})
+
+  React.useEffect(() => {
+    let cancelled = false
+    let knownRevision = null
+    if (service === undefined) {
+      setState({ ledger: undefined, error: undefined, loading: false })
+      return () => {
+        cancelled = true
+      }
+    }
+    async function load() {
+      try {
+        const ledger = await service.getLedger(JSON.parse(key), knownRevision)
+        if (cancelled) return
+        if (ledger !== undefined && ledger.unchanged === true) {
+          setState((previous) => ({ ledger: previous.ledger, error: undefined, loading: false }))
+          return
+        }
+        if (ledger !== undefined) knownRevision = ledger.revision
+        setState({ ledger, error: undefined, loading: false })
+      } catch (error) {
+        if (!cancelled) setState({ ledger: undefined, error, loading: false })
+      }
+    }
+    void load()
+    const timer = intervalMs > 0 ? setInterval(() => { void load() }, intervalMs) : undefined
+    return () => {
+      cancelled = true
+      if (timer !== undefined) clearInterval(timer)
+    }
+  }, [service, key, intervalMs, tick])
+
+  function reload() {
+    setTick((value) => value + 1)
+  }
+
+  return { ledger: state.ledger, error: state.error, loading: state.loading, reload }
+}
