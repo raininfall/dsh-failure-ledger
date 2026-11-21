@@ -111,22 +111,27 @@ function queryOfProbe() {
 
 test('the query omits empty filters and defaults to hiding ignored groups', () => {
   const queryOf = queryOfProbe()
-  const query = queryOf({ tool: '', text: '', kinds: [], includeJobKilled: false, hideIgnored: true, sort: 'count' })
+  const query = queryOf({ tool: '', text: '', kinds: [], includeJobKilled: false, hideIgnored: true }, { key: 'count', dir: 'desc' })
   assert.deepEqual(JSON.parse(JSON.stringify(query)), {
     hideIgnored: true,
-    sort: 'count',
+    sort: { key: 'count', dir: 'desc' },
   })
 })
 
 test('the query carries every active filter', () => {
   const queryOf = queryOfProbe()
-  const query = queryOf({ tool: 'bash', text: 'not found', kinds: ['exit'], includeJobKilled: true, hideIgnored: false, sort: 'last' })
+  const query = queryOf({ tool: 'bash', text: 'not found', kinds: ['exit'], includeJobKilled: true, hideIgnored: false }, { key: 'lastAt', dir: 'desc' })
   assert.deepEqual(JSON.parse(JSON.stringify(query)), {
     hideIgnored: false,
-    sort: 'last',
+    sort: { key: 'lastAt', dir: 'desc' },
     tool: 'bash',
     text: 'not found',
     kinds: ['exit'],
     includeJobKilled: true,
   })
+})
+
+test('the initial sort is count descending and filters no longer carry it', () => {
+  assert.match(SOURCE, /useState\(\{ key: 'count', dir: 'desc' \}\)/)
+  assert.doesNotMatch(SOURCE, /hideIgnored: true, sort:/)
 })

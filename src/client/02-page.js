@@ -46,15 +46,60 @@ function PanelIcon(props) {
 /**
  * Build the query the host understands from the panel's filter state.
  * @param filters - Filter state.
+ * @param sort - `{ key, dir }` from the header controls.
  * @returns A query object without empty fields.
  */
-function queryOf(filters) {
-  const query = { hideIgnored: filters.hideIgnored, sort: filters.sort }
+function queryOf(filters, sort) {
+  const query = { hideIgnored: filters.hideIgnored, sort }
   if (filters.tool.length > 0) query.tool = filters.tool
   if (filters.text.length > 0) query.text = filters.text
   if (filters.kinds.length > 0) query.kinds = filters.kinds
   if (filters.includeJobKilled) query.includeJobKilled = true
   return query
+}
+
+/** Sortable data columns, in render order. */
+const SORTABLE = [
+  { key: 'count', label: 'column.count' },
+  { key: 'tool', label: 'column.tool' },
+  { key: 'kind', label: 'column.kind' },
+  { key: 'signature', label: 'column.signature' },
+  { key: 'lastAt', label: 'column.lastAt' },
+  { key: 'sessionCount', label: 'column.sessions' },
+]
+
+/**
+ * The direction a column sorts in when it first becomes the active one.
+ * Numeric columns and the timestamp read best largest-first; text columns read
+ * best A-Z.
+ * @param key - Sort key.
+ * @returns `'asc'` or `'desc'`.
+ */
+function defaultDirection(key) {
+  return key === 'count' || key === 'sessionCount' || key === 'lastAt' ? 'desc' : 'asc'
+}
+
+/**
+ * The sort state after clicking one column: flip the active column, otherwise
+ * switch to the clicked column in its default direction.
+ * @param sort - Current `{ key, dir }`.
+ * @param key - Clicked column key.
+ * @returns The next `{ key, dir }`.
+ */
+function nextSort(sort, key) {
+  if (sort !== undefined && sort.key === key) return { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
+  return { key, dir: defaultDirection(key) }
+}
+
+/**
+ * What one header reports to assistive technology and renders beside its label.
+ * @param sort - Current `{ key, dir }`.
+ * @param key - Column key.
+ * @returns `aria-sort` value and the arrow glyph (empty when inactive).
+ */
+function sortStateOf(sort, key) {
+  if (sort === undefined || sort.key !== key) return { ariaSort: 'none', arrow: '' }
+  return sort.dir === 'desc' ? { ariaSort: 'descending', arrow: '↓' } : { ariaSort: 'ascending', arrow: '↑' }
 }
 
 /**
@@ -175,23 +220,12 @@ function Filters(props) {
       }),
       t('filter.hideIgnored'),
     ),
-    h(
-      'select',
-      {
-        className: 'dsh-fl-select',
-        value: filters.sort,
-        'aria-label': t('filter.sort'),
-        onChange: (event) => patch({ ...filters, sort: event.target.value }),
-      },
-      h('option', { value: 'count' }, t('sort.count')),
-      h('option', { value: 'last' }, t('sort.last')),
-    ),
   )
 }
 
 /**
- * The grouped failure table, with selection and per-row mute.
- * @param props - `t`, rows, selection state and the row callbacks.
+ * The grouped failure table, with header sorting, selection and per-row mute.
+ * @param props - `t`, rows, selection and sort state, and the callbacks.
  * @returns The table element.
  */
 function GroupTable(props) {
@@ -207,12 +241,19 @@ function GroupTable(props) {
         'tr',
         null,
         h('th', { scope: 'col', className: 'dsh-fl-select-cell' }, ''),
-        h('th', { scope: 'col' }, t('column.count')),
-        h('th', { scope: 'col' }, t('column.tool')),
-        h('th', { scope: 'col' }, t('column.kind')),
-        h('th', { scope: 'col' }, t('column.signature')),
-        h('th', { scope: 'col' }, t('column.lastAt')),
-        h('th', { scope: 'col' }, t('column.sessions')),
+        ...SORTABLE.map((column) => {
+          const state = sortStateOf(props.sort, column.key)
+          return h(
+            'th',
+            { key: column.key, scope: 'col', 'aria-sort': state.ariaSort },
+            h(
+              'button',
+              { type: 'button', className: 'dsh-fl-sort', onClick: () => props.onSort(column.key) },
+              t(column.label),
+              state.arrow.length === 0 ? null : h('span', { className: 'dsh-fl-arrow', 'aria-hidden': 'true' }, state.arrow),
+            ),
+          )
+        }),
         h('th', { scope: 'col', className: 'dsh-fl-select-cell' }, ''),
       ),
     ),
@@ -369,7 +410,8 @@ function MergeBar(props) {
 function Page(props) {
   const t = typeof props?.t === 'function' ? props.t : (key) => key
   const service = props?.service
-  const [filters, setFilters] = React.useState({ tool: '', text: '', kinds: [], includeJobKilled: false, hideIgnored: true, sort: 'count' })
+  const [filters, setFilters] = React.useState({ tool: '', text: '', kinds: [], includeJobKilled: false, hideIgnored: true })
+  const [sort, setSort] = React.useState({ key: 'count', dir: 'desc' })
   const [selected, setSelected] = React.useState([])
   const [target, setTarget] = React.useState('')
   const [activeId, setActiveId] = React.useState(undefined)
@@ -377,7 +419,7 @@ function Page(props) {
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState(undefined)
   const [actionMessage, setActionMessage] = React.useState(undefined)
-  const state = useLedger(service, queryOf(filters))
+  const state = useLedger(service, queryOf(filters, sort))
   const ledger = state.ledger
   const groups = ledger === undefined ? [] : ledger.groups
   const totals = ledger === undefined ? undefined : ledger.totals
@@ -502,6 +544,8 @@ function Page(props) {
               groups,
               selected,
               activeId,
+              sort,
+              onSort: (key) => setSort(nextSort(sort, key)),
               onToggle: toggleSelected,
               onOpen: setActiveId,
               onMute: (groupId, mute) => changePreferences(mute ? { ignore: [groupId] } : { unignore: [groupId] }),
