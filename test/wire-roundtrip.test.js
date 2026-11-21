@@ -59,6 +59,14 @@ test('every remote result validates against the schema the client is told about'
   }
 })
 
+test('LedgerQuery carries a key and direction and rejects the old string form', () => {
+  const schema = schemaFor('LedgerQuery').create()
+  assert.doesNotThrow(() => schema.parse({ sort: { key: 'kind', dir: 'asc' } }))
+  assert.throws(() => schema.parse({ sort: 'count' }))
+  assert.throws(() => schema.parse({ sort: { key: 'nope', dir: 'asc' } }))
+  assert.throws(() => schema.parse({ sort: { key: 'count', dir: 'sideways' } }))
+})
+
 test('an empty ledger also validates', async () => {
   const store = await openLedger(join(mkdtempSync(join(tmpdir(), 'failure-ledger-wire-')), 'ledger.json'), {
     bootId: 'wire',
