@@ -103,6 +103,8 @@
 
 单文件 JSON：`$DSH_HOME/storages/failure-ledger/ledger.json`（与 `$DSH_HOME/storages/cost-meter/ledger.json` 同级习惯）。原子写：写 `ledger.json.tmp` 后 `rename`。
 
+索引只保留仍然存在的会话：每次扫描把 `sessions` 里不在 `listSessions` 结果中的条目删掉（日志已删则条目没有依据）；`retentionDays` 只裁剪失败记录本身。
+
 ```jsonc
 {
   "schemaVersion": 1,          // 数据结构版本，固定

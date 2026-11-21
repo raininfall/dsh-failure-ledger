@@ -219,3 +219,13 @@ test('a ledger written by another boot falls back to durable counters', async ()
   const third = await second.run()
   assert.equal(third.scanned, 1)
 })
+
+test('sessions deleted from disk are dropped from the index', async () => {
+  const { store, scanner } = makeScanner({ specs: THREE })
+  await scanner.run()
+  assert.equal(Object.keys(store.data.sessions).length, 3)
+  store.data.sessions.gone = { fingerprint: {}, scannedAt: BASE, cwd: '/tmp', title: '', inheritedEventCount: 0, failures: [{ at: BASE, turn: 1, step: 1, seq: 2, tool: 'bash', kind: 'exit', signature: 'gone', line: 'gone', exitCode: 1 }] }
+  const third = await scanner.run()
+  assert.equal(store.data.sessions.gone, undefined, 'a session with no log behind it is dropped')
+  assert.equal(third.scanned, 0)
+})
