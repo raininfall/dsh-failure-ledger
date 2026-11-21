@@ -38,5 +38,20 @@
   "kind.job-killed": "job killed",
   "kind.ptc-error": "sub-tool error",
   "notice.merge-target-missing": "A merge target no longer exists; the merge was skipped",
-  "notice.ledger-recovered": "The ledger file was unreadable; it was rebuilt and the original backed up"
+  "notice.ledger-recovered": "The ledger file was unreadable; it was rebuilt and the original backed up",
+  "action.select": "Select",
+  "action.mute": "Mute group",
+  "action.unmute": "Unmute group",
+  "action.copySession": "Copy session id",
+  "action.close": "Close",
+  "action.merge": "Merge",
+  "action.mergeInto": "Merge into…",
+  "action.clearSelection": "Clear selection",
+  "action.working": "Working…",
+  "detail.title": "Group detail",
+  "detail.loading": "Loading occurrences…",
+  "detail.empty": "This group has no visible occurrences",
+  "detail.untitled": "Untitled session",
+  "merge.selected": "{n} selected",
+  "error.action": "Action failed"
 }

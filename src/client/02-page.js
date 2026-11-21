@@ -176,12 +176,13 @@ function Filters(props) {
 }
 
 /**
- * The grouped failure table.
- * @param props - `t` and the group rows.
+ * The grouped failure table, with selection and per-row mute.
+ * @param props - `t`, rows, selection state and the row callbacks.
  * @returns The table element.
  */
 function GroupTable(props) {
   const t = props.t
+  const selected = props.selected
   return h(
     'table',
     { className: 'dsh-fl-table' },
@@ -191,12 +192,14 @@ function GroupTable(props) {
       h(
         'tr',
         null,
+        h('th', { scope: 'col', className: 'dsh-fl-select-cell' }, ''),
         h('th', { scope: 'col' }, t('column.count')),
         h('th', { scope: 'col' }, t('column.tool')),
         h('th', { scope: 'col' }, t('column.kind')),
         h('th', { scope: 'col' }, t('column.signature')),
         h('th', { scope: 'col' }, t('column.lastAt')),
         h('th', { scope: 'col' }, t('column.sessions')),
+        h('th', { scope: 'col', className: 'dsh-fl-select-cell' }, ''),
       ),
     ),
     h(
@@ -205,16 +208,142 @@ function GroupTable(props) {
       props.groups.map((group) =>
         h(
           'tr',
-          { key: group.groupId, className: group.ignored ? 'dsh-fl-row dsh-fl-row-ignored' : 'dsh-fl-row' },
+          {
+            key: group.groupId,
+            className: [
+              'dsh-fl-row',
+              group.ignored ? 'dsh-fl-row-ignored' : '',
+              props.activeId === group.groupId ? 'dsh-fl-row-active' : '',
+            ]
+              .filter((name) => name.length > 0)
+              .join(' '),
+          },
+          h(
+            'td',
+            { className: 'dsh-fl-select-cell' },
+            h('input', {
+              type: 'checkbox',
+              'aria-label': t('action.select'),
+              checked: selected.includes(group.groupId),
+              onChange: () => props.onToggle(group.groupId),
+              onClick: (event) => event.stopPropagation(),
+            }),
+          ),
           h('td', { className: 'dsh-fl-count' }, formatCount(group.count)),
           h('td', null, group.tool),
           h('td', null, kindLabel(group.kind, t)),
-          h('td', { className: 'dsh-fl-signature', title: group.signature }, group.signature),
+          h(
+            'td',
+            { className: 'dsh-fl-signature', title: group.signature, onClick: () => props.onOpen(group.groupId) },
+            group.signature,
+          ),
           h('td', null, formatRelativeTime(group.lastAt, t)),
           h('td', null, formatCount(group.sessionCount)),
+          h(
+            'td',
+            { className: 'dsh-fl-select-cell' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dsh-fl-link',
+                onClick: (event) => {
+                  event.stopPropagation()
+                  props.onMute(group.groupId, group.ignored !== true)
+                },
+              },
+              group.ignored ? t('action.unmute') : t('action.mute'),
+            ),
+          ),
         ),
       ),
     ),
+  )
+}
+
+/**
+ * One group's occurrences, newest first.
+ * @param props - `t`, the loaded group and its state.
+ * @returns The detail element.
+ */
+function GroupDetail(props) {
+  const t = props.t
+  const group = props.group
+  const rows = group === undefined ? [] : group.occurrences
+  return h(
+    'aside',
+    { className: 'dsh-fl-detail', 'aria-label': t('detail.title') },
+    h(
+      'header',
+      { className: 'dsh-fl-detail-header' },
+      h('h2', { className: 'dsh-fl-detail-title' }, group === undefined ? t('detail.loading') : kindLabel(group.kind, t) + ' · ' + group.tool),
+      h('button', { type: 'button', className: 'dsh-fl-link', onClick: props.onClose }, t('action.close')),
+    ),
+    group === undefined
+      ? h('p', { className: 'dsh-fl-muted' }, t('detail.loading'))
+      : h(
+          'div',
+          { className: 'dsh-fl-detail-body' },
+          h('p', { className: 'dsh-fl-signature dsh-fl-signature-block' }, group.signature),
+          rows.length === 0
+            ? h('p', { className: 'dsh-fl-muted' }, t('detail.empty'))
+            : h(
+                'ul',
+                { className: 'dsh-fl-occurrences' },
+                rows.map((occurrence, index) =>
+                  h(
+                    'li',
+                    { key: String(index), className: 'dsh-fl-occurrence' },
+                    h(
+                      'div',
+                      { className: 'dsh-fl-occurrence-meta' },
+                      h('span', null, formatRelativeTime(occurrence.at, t)),
+                      h('span', { className: 'dsh-fl-muted' }, occurrence.sessionTitle.length > 0 ? occurrence.sessionTitle : t('detail.untitled')),
+                      h('button', {
+                        type: 'button',
+                        className: 'dsh-fl-link',
+                        onClick: () => props.onCopySession(occurrence.sessionId),
+                      }, t('action.copySession')),
+                    ),
+                    h('code', { className: 'dsh-fl-occurrence-line' }, occurrence.line),
+                    h('span', { className: 'dsh-fl-muted' }, occurrence.cwd),
+                  ),
+                ),
+              ),
+        ),
+  )
+}
+
+/**
+ * The merge control for the current selection.
+ * @param props - `t`, candidate targets, selection and callbacks.
+ * @returns The merge bar, or null when nothing is selected.
+ */
+function MergeBar(props) {
+  if (props.selected.length === 0) return null
+  const t = props.t
+  return h(
+    'div',
+    { className: 'dsh-fl-merge' },
+    h('span', null, t('merge.selected').replace('{n}', String(props.selected.length))),
+    h(
+      'select',
+      {
+        className: 'dsh-fl-select',
+        value: props.target,
+        'aria-label': t('action.mergeInto'),
+        onChange: (event) => props.onTarget(event.target.value),
+      },
+      h('option', { value: '' }, t('action.mergeInto')),
+      props.candidates.map((candidate) => h('option', { key: candidate.groupId, value: candidate.groupId }, candidate.signature)),
+    ),
+    h('button', {
+      type: 'button',
+      className: 'dsh-fl-button',
+      disabled: props.target.length === 0,
+      onClick: () => props.onMerge(props.target),
+    }, t('action.merge')),
+    h('button', { type: 'button', className: 'dsh-fl-link', onClick: props.onClear }, t('action.clearSelection')),
   )
 }
 
@@ -227,18 +356,84 @@ function Page(props) {
   const t = typeof props?.t === 'function' ? props.t : (key) => key
   const service = props?.service
   const [filters, setFilters] = React.useState({ tool: '', text: '', kinds: [], includeJobKilled: false, hideIgnored: true, sort: 'count' })
+  const [selected, setSelected] = React.useState([])
+  const [target, setTarget] = React.useState('')
+  const [activeId, setActiveId] = React.useState(undefined)
+  const [detail, setDetail] = React.useState(undefined)
+  const [busy, setBusy] = React.useState(false)
+  const [actionError, setActionError] = React.useState(undefined)
   const state = useLedger(service, queryOf(filters))
   const ledger = state.ledger
   const groups = ledger === undefined ? [] : ledger.groups
   const totals = ledger === undefined ? undefined : ledger.totals
 
-  async function onRefresh() {
+  React.useEffect(() => {
+    let cancelled = false
+    if (activeId === undefined || service === undefined) {
+      setDetail(undefined)
+      return () => {
+        cancelled = true
+      }
+    }
+    service
+      .getGroup(activeId, 20)
+      .then((value) => {
+        if (!cancelled) setDetail(value)
+      })
+      .catch((error) => {
+        if (!cancelled) setActionError(error)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeId, service, state.ledger])
+
+  /**
+   * Run one preference change, then refetch the ledger.
+   * @param patch - `updatePrefs` patch.
+   */
+  async function changePreferences(patch) {
+    if (service === undefined) return
+    setBusy(true)
+    setActionError(undefined)
     try {
-      if (service !== undefined) await service.refresh(false)
+      await service.updatePrefs(patch)
+      state.reload()
+    } catch (error) {
+      setActionError(error)
     } finally {
+      setBusy(false)
+    }
+  }
+
+  function toggleSelected(groupId) {
+    setSelected((current) => (current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId]))
+  }
+
+  async function rescan() {
+    setBusy(true)
+    setActionError(undefined)
+    try {
+      if (service !== undefined) await service.refresh(true)
+    } finally {
+      setBusy(false)
       state.reload()
     }
   }
+
+  async function copySession(sessionId) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined) await navigator.clipboard.writeText(sessionId)
+    } catch (error) {
+      setActionError(error)
+    }
+  }
+
+  const selectedGroups = groups.filter((group) => selected.includes(group.groupId))
+  const selectedKinds = selectedGroups.map((group) => group.tool + '\u0000' + group.kind)
+  const candidates = groups.filter(
+    (group) => !selected.includes(group.groupId) && (selectedGroups.length === 0 || selectedKinds.includes(group.tool + '\u0000' + group.kind)),
+  )
 
   return h(
     'section',
@@ -252,16 +447,53 @@ function Page(props) {
         'div',
         { className: 'dsh-fl-actions' },
         ledger !== undefined && ledger.scanning === true ? h('span', { className: 'dsh-fl-scanning' }, t('scanning')) : null,
-        h('button', { type: 'button', className: 'dsh-fl-button', onClick: onRefresh }, t('refresh')),
+        busy ? h('span', { className: 'dsh-fl-scanning' }, t('action.working')) : null,
+        h('button', { type: 'button', className: 'dsh-fl-button', disabled: busy, onClick: rescan }, t('refresh')),
       ),
     ),
     h(Totals, { t, totals }),
     h(Notices, { t, notices: ledger === undefined ? [] : ledger.notices }),
     h(Filters, { t, filters, onChange: setFilters }),
+    h(MergeBar, {
+      t,
+      selected,
+      target,
+      candidates,
+      onTarget: setTarget,
+      onMerge: (to) => changePreferences({ merge: selected.map((from) => ({ from, to })) }),
+      onClear: () => {
+        setSelected([])
+        setTarget('')
+      },
+    }),
     state.error !== undefined
       ? h('p', { className: 'dsh-fl-error', role: 'alert' }, String(state.error.message ?? state.error))
       : groups.length === 0
         ? h('div', { className: 'dsh-failure-ledger-empty' }, h(PanelIcon, { size: 28 }), h('p', null, t(state.loading ? 'scanning' : 'empty')))
-        : h('div', { className: 'dsh-fl-table-wrap' }, h(GroupTable, { t, groups })),
+        : h(
+            'div',
+            { className: 'dsh-fl-body' },
+            h('div', { className: 'dsh-fl-table-wrap' }, h(GroupTable, {
+              t,
+              groups,
+              selected,
+              activeId,
+              onToggle: toggleSelected,
+              onOpen: setActiveId,
+              onMute: (groupId, mute) => changePreferences(mute ? { ignore: [groupId] } : { unignore: [groupId] }),
+            })),
+            activeId === undefined ? null : h(GroupDetail, {
+              t,
+              group: detail,
+              onClose: () => {
+                setActiveId(undefined)
+                setDetail(undefined)
+              },
+              onCopySession: copySession,
+            }),
+          ),
+    actionError === undefined
+      ? null
+      : h('p', { className: 'dsh-fl-error', role: 'alert' }, t('error.action') + ': ' + String(actionError.message ?? actionError)),
   )
 }

@@ -188,3 +188,14 @@ function useLedger(service, query, options) {
 
   return { ledger: state.ledger, error: state.error, loading: state.loading, reload }
 }
+
+/**
+ * Translate a key, falling back to the key itself when the table has no entry.
+ * @param translate - Locale lookup.
+ * @param key - Dotted dictionary key.
+ * @returns The translated string, or the key.
+ */
+function text(translate, key) {
+  const value = typeof translate === 'function' ? translate(key) : undefined
+  return typeof value === 'string' && value.length > 0 ? value : key
+}

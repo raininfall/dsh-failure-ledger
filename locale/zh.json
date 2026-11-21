@@ -38,5 +38,20 @@
   "kind.job-killed": "后台作业被终止",
   "kind.ptc-error": "子工具报错",
   "notice.merge-target-missing": "合并目标已不存在，该合并被跳过",
-  "notice.ledger-recovered": "台账文件损坏，已重建并备份原文件"
+  "notice.ledger-recovered": "台账文件损坏，已重建并备份原文件",
+  "action.select": "选择",
+  "action.mute": "忽略该组",
+  "action.unmute": "取消忽略",
+  "action.copySession": "复制会话 ID",
+  "action.close": "关闭",
+  "action.merge": "合并",
+  "action.mergeInto": "合并到…",
+  "action.clearSelection": "清除选择",
+  "action.working": "处理中…",
+  "detail.title": "分组明细",
+  "detail.loading": "正在加载明细…",
+  "detail.empty": "该组没有可显示的记录",
+  "detail.untitled": "未命名会话",
+  "merge.selected": "已选 {n} 组",
+  "error.action": "操作失败"
 }
