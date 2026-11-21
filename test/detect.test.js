@@ -173,3 +173,18 @@ test('line and signature stay bounded', () => {
   assert.ok(failure.line.length <= 400)
   assert.ok(failure.signature.length <= 120)
 })
+
+test('a failed job groups by its command label, not by the exit code', () => {
+  const settled = (label, detail, toolCall) => ({
+    type: 'job/settled',
+    seq: 3,
+    time: BASE,
+    data: { jobId: 'j1', status: 'completed', detail, label, ...(toolCall === undefined ? {} : { toolCall }) },
+  })
+  const first = foldSession({ events: [settled('npm run build', 'exit code: 1')], nowMs: BASE + 86_400_000 })
+  const second = foldSession({ events: [settled('pnpm test', 'exit code: 1')], nowMs: BASE + 86_400_000 })
+  assert.equal(first.failures.length, 1)
+  assert.equal(first.failures[0].kind, 'job-failed')
+  assert.equal(first.failures[0].signature, 'npm run build')
+  assert.notEqual(first.failures[0].signature, second.failures[0].signature)
+})

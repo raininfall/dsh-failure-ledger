@@ -72,11 +72,19 @@
 
 1. 取候选文本：有 `[stderr]` 段就用该段，否则用正文。
 2. 删掉命令回显行（`[rtk] ran: ...`）与标记行本身（`[exit code: N]`、`[killed by signal: ...]`、`[timed out ...]`、`[stopped: ...]`、`[stderr]` 标题行）。
-3. 选错误行，按优先级：
-   a. 命中 `/error|exception|failed|failure|denied|refused|not found|no such|cannot|could not|invalid/i` 的行（多行命中取第一条）；
-   b. 否则 `[stderr]` 段的第一条非空行；
-   c. 否则正文最后一条非空行。
+3. 选错误行，两级排序：
+   a. **判词行**：形如 `<Xxx>Error: ...`、`<Xxx>Exception: ...`、`bash: ...`、`fatal: ...`、`FAIL...`、`panic: ...` 的行；
+   b. **关键词行**：命中 `\b(error|exception|failed|failure|denied|refused|not found|no such|cannot|could not|invalid|unable|missing)\b` 的行（用词边界，避免 `isError` 这类标识符误命中）。
+   先在 `[stderr]` 段内按 a→b 各取第一条，再在全文按 a→b 各取第一条；都没有才退到 c/d。
+   c. 否则 `[stderr]` 段的第一条非空行；
+   d. 否则正文最后一条非空行。
+   *为什么 a 优先于 b*：实测有一条把测试源码回显行（含 `error record` 字样）当成签名，而真正的判词是后面的 `AssertionError: ...`。
    *为什么 b 优先于 c*：实测 30 会话里出现 `signature` 为 `===`、`}`、`REMOTE` 这类碎组，正是"取末行"造成的；stderr 首行更接近真正的失败原因。
+
+**后台作业的签名**：`job/settled` 不带 stderr 文本，`detail` 往往只有 `exit code: N` 或 `signal: X; 原因`。因此：
+- `detail` 带 `; ` 原因时用原因串做签名（如 `signal: SIGTERM; Broad grep too slow` → `Broad grep too slow`）；
+- 否则用作业的 `label`（命令摘要）做签名，让不同脚本的失败不挤进同一个 `exit code: <n>` 组；
+- `label` 与 `detail` 都为空才退回 `kind` 兜底。
 4. 归一化：去 ANSI；Unix 绝对路径与 Windows 盘符路径 → `<path>`；UUID/≥8 位 hex → `<id>`；`行:列` 与裸露数字 → `<n>`；折叠空白；截断 160 字符。
 5. 签名空则用 `kind` 兜底；同时保存未归一化的 `line`（≤400 字符）供人工判断。
 

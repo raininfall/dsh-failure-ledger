@@ -59,3 +59,13 @@ test('groupIdOf is a stable 16-character digest of tool, kind and signature', ()
   assert.notEqual(groupIdOf('bash', 'signal', 'boom'), id)
   assert.notEqual(groupIdOf('edit', 'exit', 'boom'), id)
 })
+
+test('a keyword buried inside an identifier does not outrank a real verdict', () => {
+  const text = '[stderr]\nconst ok = isError(result)\nError: boom\n[exit code: 1]'
+  assert.equal(extractErrorLine(text), 'Error: boom')
+})
+
+test('a stack-trace verdict outranks an echoed source line that mentions error', () => {
+  const text = "[stderr]\ntest('an isError result becomes one error record', () => {\nAssertionError: expected 1 to equal 2\n[exit code: 1]"
+  assert.equal(extractErrorLine(text), 'AssertionError: expected 1 to equal 2')
+})
