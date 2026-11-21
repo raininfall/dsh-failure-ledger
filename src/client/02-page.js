@@ -8,6 +8,19 @@
 const h = React.createElement
 
 /**
+ * Describe the running scan, including its progress when the host reports it.
+ * @param translate - Locale lookup.
+ * @param ledger - Current ledger result, possibly carrying `progress`.
+ * @returns The scanning label.
+ */
+function scanLabel(translate, ledger) {
+  const label = translate('scanning')
+  const progress = ledger?.progress
+  if (progress === undefined || progress === null || typeof progress.total !== 'number') return label
+  return label + ' ' + String(progress.done ?? 0) + '/' + String(progress.total)
+}
+
+/**
  * Sidebar glyph: a warning triangle drawn inline, so the entry does not depend
  * on which icon names the installed primitives package happens to export.
  * @param props - `size` in pixels and whether the entry is active.
@@ -17,15 +30,16 @@ function PanelIcon(props) {
   const size = typeof props?.size === 'number' ? props.size : 16
   return h(
     'svg',
-    { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' },
+    { width: size, height: size, viewBox: '0 0 16 16', 'aria-hidden': 'true' },
     h('path', {
-      d: 'M8 2.2 14.4 13.2H1.6L8 2.2Z',
-      stroke: 'currentColor',
-      strokeWidth: '1.2',
+      d: 'M8 1.7 15.1 13.9H0.9L8 1.7Z',
+      fill: '#e5484d',
+      stroke: '#e5484d',
+      strokeWidth: '1',
       strokeLinejoin: 'round',
     }),
-    h('path', { d: 'M8 6.1v3.2', stroke: 'currentColor', strokeWidth: '1.2', strokeLinecap: 'round' }),
-    h('circle', { cx: '8', cy: '11.3', r: '0.75', fill: 'currentColor' }),
+    h('path', { d: 'M8 5.6v3.7', stroke: '#fff', strokeWidth: '1.6', strokeLinecap: 'round' }),
+    h('circle', { cx: '8', cy: '11.5', r: '0.9', fill: '#fff' }),
   )
 }
 
@@ -362,6 +376,7 @@ function Page(props) {
   const [detail, setDetail] = React.useState(undefined)
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState(undefined)
+  const [actionMessage, setActionMessage] = React.useState(undefined)
   const state = useLedger(service, queryOf(filters))
   const ledger = state.ledger
   const groups = ledger === undefined ? [] : ledger.groups
@@ -411,10 +426,18 @@ function Page(props) {
   }
 
   async function rescan() {
+    if (service === undefined) {
+      setActionError(new Error(t('action.noService')))
+      return
+    }
     setBusy(true)
     setActionError(undefined)
+    setActionMessage(undefined)
     try {
-      if (service !== undefined) await service.refresh(true)
+      const summary = await service.refresh(false)
+      setActionMessage(summary?.busy === true ? t('action.busy') : t('action.done').replace('{n}', String(summary?.scanned ?? 0)))
+    } catch (error) {
+      setActionError(error)
     } finally {
       setBusy(false)
       state.reload()
@@ -446,8 +469,9 @@ function Page(props) {
       h(
         'div',
         { className: 'dsh-fl-actions' },
-        ledger !== undefined && ledger.scanning === true ? h('span', { className: 'dsh-fl-scanning' }, t('scanning')) : null,
+        ledger !== undefined && ledger.scanning === true ? h('span', { className: 'dsh-fl-scanning' }, scanLabel(t, ledger)) : null,
         busy ? h('span', { className: 'dsh-fl-scanning' }, t('action.working')) : null,
+        actionMessage === undefined ? null : h('span', { className: 'dsh-fl-scanning' }, actionMessage),
         h('button', { type: 'button', className: 'dsh-fl-button', disabled: busy, onClick: rescan }, t('refresh')),
       ),
     ),
@@ -469,7 +493,7 @@ function Page(props) {
     state.error !== undefined
       ? h('p', { className: 'dsh-fl-error', role: 'alert' }, String(state.error.message ?? state.error))
       : groups.length === 0
-        ? h('div', { className: 'dsh-failure-ledger-empty' }, h(PanelIcon, { size: 28 }), h('p', null, t(state.loading ? 'scanning' : 'empty')))
+        ? h('div', { className: 'dsh-failure-ledger-empty' }, h(PanelIcon, { size: 28 }), h('p', null, service === undefined ? t('empty.unmounted') : t(state.loading ? 'scanning' : 'empty')))
         : h(
             'div',
             { className: 'dsh-fl-body' },

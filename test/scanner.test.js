@@ -25,7 +25,7 @@ function makeSource(specs) {
       id: spec.id,
       origin: spec.origin,
       cwd: spec.cwd ?? '/w',
-      events: spec.events,
+      events: [...spec.events, { type: 'session/title', seq: spec.events.length + 1, time: 0, data: { title: spec.title ?? `title-${spec.id}` } }],
       title: spec.title ?? `title-${spec.id}`,
       revision: spec.revision ?? 1,
       eventCount: spec.eventCount ?? spec.events.length,
@@ -34,7 +34,7 @@ function makeSource(specs) {
     })
   }
   const source = {
-    calls: { listSessions: 0, stat: 0, readSession: 0, readTitle: 0 },
+    calls: { listSessions: 0, stat: 0, readSession: 0 },
     async listSessions() {
       source.calls.listSessions += 1
       return [...state.values()].map((entry) => ({
@@ -58,10 +58,6 @@ function makeSource(specs) {
         capturedThroughSeq: entry.events.length,
         events: entry.events,
       }
-    },
-    async readTitle(id) {
-      source.calls.readTitle += 1
-      return { title: state.get(id).title }
     },
   }
   source.mutate = (id, patch) => {
@@ -218,6 +214,51 @@ test('a ledger written by another boot falls back to durable counters', async ()
   source.mutate('s1', { revision: 7, eventCount: 42, sizeBytes: 777 })
   const third = await second.run()
   assert.equal(third.scanned, 1)
+})
+
+test('a backend that reports only sizeBytes still skips unchanged sessions across boots', async () => {
+  const { scanner, source, store } = makeScanner({ specs: THREE })
+  const stat = source.stat
+  source.stat = async (id, signal) => {
+    const snapshot = await stat(id, signal)
+    if (snapshot === undefined) return snapshot
+    const { eventCount, ...sizeOnly } = snapshot
+    return sizeOnly
+  }
+  await scanner.run()
+  const second = createScanner({ source, store, config: normalizeConfig({}), bootId: 'boot-2', now: () => BASE })
+  const next = await second.run()
+  assert.equal(next.scanned, 0)
+  assert.equal(next.skipped, 3)
+  source.mutate('s2', { sizeBytes: 4242 })
+  const third = await second.run()
+  assert.equal(third.scanned, 1)
+  assert.equal(third.skipped, 2)
+})
+
+test('status reports progress while a pass runs and clears it afterwards', async () => {
+  const seen = []
+  const { scanner } = makeScanner({ specs: THREE, onProgress: () => seen.push(scanner.status().progress) })
+  await scanner.run()
+  assert.deepEqual(seen[0], { done: 0, total: 3 })
+  assert.deepEqual(seen[seen.length - 1], { done: 3, total: 3 })
+  assert.equal(scanner.status().progress, null)
+})
+
+test('dirty selection stats every session concurrently', async () => {
+  const { scanner, source } = makeScanner({ specs: THREE })
+  let inFlight = 0
+  let peak = 0
+  const stat = source.stat
+  source.stat = async (id, signal) => {
+    inFlight += 1
+    peak = Math.max(peak, inFlight)
+    await new Promise((resolve) => setImmediate(resolve))
+    inFlight -= 1
+    return stat(id, signal)
+  }
+  await scanner.run()
+  assert.equal(peak > 1, true, 'a sequential sweep over every session is what made a rescan feel dead')
 })
 
 test('sessions deleted from disk are dropped from the index', async () => {

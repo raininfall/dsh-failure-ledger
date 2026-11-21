@@ -3,6 +3,7 @@
   "title": "工具失败台账",
   "caption": "来自会话日志的工具与脚本调用失败，按确定性规则分组",
   "empty": "还没有扫描结果",
+  "empty.unmounted": "台账服务未挂载——请刷新页面；若仍未挂载，请查看浏览器控制台。",
   "refresh": "重新扫描",
   "scanning": "正在扫描…",
   "time.never": "从未",
@@ -53,5 +54,8 @@
   "detail.empty": "该组没有可显示的记录",
   "detail.untitled": "未命名会话",
   "merge.selected": "已选 {n} 组",
-  "error.action": "操作失败"
+  "error.action": "操作失败",
+  "action.noService": "台账服务未挂载",
+  "action.busy": "已有扫描在进行",
+  "action.done": "已扫描 {n} 个会话"
 }

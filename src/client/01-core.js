@@ -99,14 +99,28 @@ function jsonCodec() {
 }
 
 /**
- * Describe one remote method.
- * @param method - Method name on the provided service.
+ * Describe one remote method of the `failureLedger` namespace.
+ *
+ * The gateway groups descriptors by `namespace` and reads `invocation.kind`
+ * before mounting anything, so a descriptor without those fields fails the
+ * whole contribution. `id` mirrors the Host manifest entry in `typert.js`.
+ * @param method - Method name on the Host service.
  * @param parameters - Parameter descriptors.
  * @param resultType - Schema name for the result.
+ * @param description - One-line summary shown in generated docs.
  * @returns The descriptor.
  */
-function remoteMethod(method, parameters, resultType) {
-  return { method, parameters, result: strictCodec(resultType, jsonCodec()) }
+function remoteMethod(method, parameters, resultType, description) {
+  return {
+    id: 'dsh-failure-ledger#failureLedger/' + method,
+    service: 'failureLedger',
+    namespace: 'failureLedger',
+    method,
+    description,
+    invocation: { kind: 'direct' },
+    parameters,
+    result: strictCodec(resultType, jsonCodec()),
+  }
 }
 
 /**
@@ -115,24 +129,52 @@ function remoteMethod(method, parameters, resultType) {
 const CONTRIBUTION = {
   package: 'dsh-failure-ledger',
   descriptors: [
-    remoteMethod('getLedger', [rpcParam('query', 'LedgerQuery', jsonCodec(), true), rpcParam('knownRevision', 'Revision', jsonCodec(), true)], 'LedgerResult'),
-    remoteMethod('getGroup', [rpcParam('groupId', 'GroupId', jsonCodec()), rpcParam('limit', 'Limit', jsonCodec(), true)], 'GroupResult'),
-    remoteMethod('refresh', [rpcParam('full', 'Flag', jsonCodec(), true)], 'ScanSummary'),
-    remoteMethod('updatePrefs', [rpcParam('patch', 'PrefsPatch', jsonCodec())], 'UpdatePrefsResult'),
+    remoteMethod('getLedger', [rpcParam('query', 'LedgerQuery', jsonCodec(), true), rpcParam('knownRevision', 'Revision', jsonCodec(), true)], 'LedgerResult', 'Read the grouped failure ledger'),
+    remoteMethod('getGroup', [rpcParam('groupId', 'GroupId', jsonCodec()), rpcParam('limit', 'Limit', jsonCodec(), true)], 'GroupResult', 'Read one group and its newest occurrences'),
+    remoteMethod('refresh', [rpcParam('full', 'Flag', jsonCodec(), true)], 'ScanSummary', 'Run one scan pass now'),
+    remoteMethod('updatePrefs', [rpcParam('patch', 'PrefsPatch', jsonCodec())], 'UpdatePrefsResult', 'Change ignore and merge decisions'),
   ],
 }
 
 /**
+ * Unwrap the result a Remote method resolves to.
+ *
+ * The gateway resolves every call to `{ ok, value }`/`{ ok, error }` so the
+ * caller can tell a business failure from a transport failure; the panel works
+ * with the value alone.
+ * @param result - One Remote result.
+ * @returns The business value.
+ * @throws When the call reported a failure.
+ */
+function unwrapRemote(result) {
+  if (result === null || typeof result !== 'object' || typeof result.ok !== 'boolean') return result
+  if (result.ok === true) return result.value
+  const message = result.error !== undefined && typeof result.error.message === 'string'
+    ? result.error.message
+    : 'the ledger service failed'
+  throw new Error(message)
+}
+
+/** Methods the panel calls, in the order the Host manifest declares them. */
+const SERVICE_METHODS = ['getLedger', 'getGroup', 'refresh', 'updatePrefs']
+
+/**
  * Mount the remote contribution and take ownership of its release.
  * @param ctx - Client context.
- * @returns The service, or undefined when this host cannot mount remotes.
+ * @returns A value-returning view of the service, or undefined when this host cannot mount remotes.
  */
 async function mountRemote(ctx) {
   const remote = ctx.remote
   if (remote === undefined || typeof remote.$mount !== 'function') return undefined
   const unmount = await remote.$mount(CONTRIBUTION)
   ctx.effect(() => () => unmount(), 'failure-ledger: remote contribution')
-  return ctx.get('remote.failureLedger')
+  const mounted = ctx.get('remote.failureLedger')
+  if (mounted === undefined) return undefined
+  const service = {}
+  for (const method of SERVICE_METHODS) {
+    service[method] = async (...args) => unwrapRemote(await mounted[method](...args))
+  }
+  return service
 }
 
 /**
@@ -162,10 +204,27 @@ function useLedger(service, query, options) {
     }
     async function load() {
       try {
-        const ledger = await service.getLedger(JSON.parse(key), knownRevision)
+        // The wire accepts an omitted revision, not a null one: parameters are
+        // strict, so a null would fail the host schema check.
+        const ledger = await service.getLedger(JSON.parse(key), knownRevision === null ? undefined : knownRevision)
         if (cancelled) return
         if (ledger !== undefined && ledger.unchanged === true) {
-          setState((previous) => ({ ledger: previous.ledger, error: undefined, loading: false }))
+          // The rows did not change, but the pass may have started or advanced:
+          // keep the status fields so the panel can show scan progress.
+          setState((previous) => ({
+            ledger:
+              previous.ledger === undefined
+                ? previous.ledger
+                : {
+                    ...previous.ledger,
+                    scanning: ledger.scanning,
+                    progress: ledger.progress ?? null,
+                    totals: ledger.totals ?? previous.ledger.totals,
+                    notices: ledger.notices ?? previous.ledger.notices,
+                  },
+            error: undefined,
+            loading: false,
+          }))
           return
         }
         if (ledger !== undefined) knownRevision = ledger.revision

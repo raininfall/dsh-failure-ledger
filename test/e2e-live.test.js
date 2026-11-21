@@ -66,7 +66,7 @@ function loadSession(entry) {
 /**
  * A source adapter over the real session files.
  * @param entries - Session log paths.
- * @returns `listSessions`, `stat`, `readSession` and `readTitle`.
+ * @returns `listSessions`, `stat`, and `readSession`.
  */
 function fileSource(entries) {
   const cache = new Map()
@@ -90,9 +90,6 @@ function fileSource(entries) {
     async readSession(id) {
       const loaded = load(id)
       return { inheritedEventCount: 0, events: loaded.events }
-    },
-    async readTitle() {
-      return ''
     },
   }
 }

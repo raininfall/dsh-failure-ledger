@@ -83,8 +83,10 @@ test('the panel loads a group detail and resolves a copy target', () => {
   assert.match(SOURCE, /navigator\.clipboard\.writeText\(sessionId\)/)
 })
 
-test('a manual rescan asks the host for a full sweep', () => {
-  assert.match(SOURCE, /service\.refresh\(true\)/)
+test('a manual rescan asks the host for the changed sessions and reports the answer', () => {
+  assert.match(SOURCE, /service\.refresh\(false\)/)
+  assert.match(SOURCE, /action\.done/)
+  assert.match(SOURCE, /action\.busy/)
 })
 
 test('every detail and action key the panel renders exists in both languages', () => {

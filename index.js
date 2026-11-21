@@ -28,6 +28,13 @@ export const inject = ['sessionQuery', 'sessionPersistence']
 const STARTUP_SCAN_DELAY_MS = 5000
 
 /**
+ * Cordis service key and Typert namespace of the ledger query service. The
+ * plugin manifest, the client contribution and the gateway binding all have to
+ * agree on it.
+ */
+const SERVICE_KEY = 'failureLedger'
+
+/**
  * Resolve the DSH home the ledger lives under when no path is configured.
  * @returns The configured DSH home, `$DSH_HOME`, or `~/.dsh`.
  */
@@ -62,21 +69,26 @@ function createSource(ctx) {
       return persistence.stat(sessionId)
     },
     /**
-     * Read one session's events.
+     * Read one session's complete log.
+     *
+     * `observeSession` opens the stored log directly, while `readSession`
+     * re-lists the whole persistence store first -- a listing per session,
+     * which made a pass over a few dozen sessions take tens of minutes.
      * @param sessionId - Session to read.
-     * @returns The session log snapshot.
+     * @param signal - Optional cancellation for the stored-log read.
+     * @returns The session header, inherited prefix length, and events.
      */
-    async readSession(sessionId) {
-      return query.readSession(sessionId)
-    },
-    /**
-     * Read one session's generated title, if it has one.
-     * @param sessionId - Session to read.
-     * @returns The title text, or undefined.
-     */
-    async readTitle(sessionId) {
-      const snapshot = await query.readTitleSnapshot(sessionId)
-      return snapshot?.title?.title
+    async readSession(sessionId, signal) {
+      const observation = await query.observeSession(sessionId, signal === undefined ? {} : { signal })
+      try {
+        return {
+          session: observation.header,
+          inheritedEventCount: observation.inheritedEventCount,
+          events: observation.events,
+        }
+      } finally {
+        observation[Symbol.dispose]()
+      }
     },
   }
 }
@@ -101,14 +113,26 @@ export async function apply(ctx, rawConfig) {
   const scanner = createScanner({ source: createSource(ctx), store, config, bootId })
   const service = createService({ store, scanner, config })
 
-  ctx.provide('failureLedger', service)
+  // The gateway reaches a Host service only through this visible binding. Without
+  // it every `failureLedger/*` call is refused as "no visible typertRemote
+  // binding" before the method runs, even though the typert manifest is loaded.
+  Object.defineProperty(service, 'typertRemote', {
+    value: Object.freeze({ service, serviceKey: SERVICE_KEY, namespace: SERVICE_KEY }),
+    enumerable: false,
+  })
+
+  ctx.provide(SERVICE_KEY, service)
 
   ctx.effect(() => {
     let timer
     if (config.scanOnStartup) {
       timer = setTimeout(() => {
         timer = undefined
-        scanner.schedule().catch(() => {})
+        scanner.schedule().catch((error) => {
+          // The panel shows the ledger, not the host log: a startup pass that
+          // fails here has to leave a trace somewhere the user can find.
+          ctx.logger?.warn?.(`failure-ledger: startup scan failed: ${error instanceof Error ? error.message : String(error)}`)
+        })
       }, STARTUP_SCAN_DELAY_MS)
       timer.unref?.()
     }

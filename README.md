@@ -34,7 +34,7 @@ A "Failure ledger" entry appears in the sidebar; clicking it opens the ledger in
 - Click a signature to see the occurrences behind a group, with session title and cwd.
 - Mute a group to hide it from the default view; unmute from the same row.
 - Select rows and merge them into one target group (same tool and kind only).
-- "Rescan" forces a full sweep; the panel otherwise polls and rescans changed sessions in the background.
+- "Rescan" rescans the sessions that changed since the last pass and reports its progress; delete the ledger file for a full rebuild. The panel also polls in the background.
 
 Preferences (mute and merge) live in the ledger file, so they survive restarts.
 

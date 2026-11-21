@@ -173,6 +173,17 @@ test('refresh runs the scanner and reports its summary', async () => {
   assert.equal(result.scanned, 1)
 })
 
+test('a running scan reports its progress with the ledger', async () => {
+  const scanner = fakeScanner()
+  scanner.status = () => ({ scanning: true, progress: { done: 2, total: 9 }, lastRun: null, stale: [] })
+  const { service } = makeService({ sessions: THREE_AND_TWO, scanner })
+  const unchanged = await service.getLedger({}, 1)
+  assert.equal(unchanged.scanning, true)
+  assert.deepEqual(unchanged.progress, { done: 2, total: 9 })
+  const full = await service.getLedger({}, null)
+  assert.deepEqual(full.progress, { done: 2, total: 9 })
+})
+
 test('getGroup lists the occurrences of one group', async () => {
   const { service } = makeService({ sessions: THREE_AND_TWO })
   const ledger = await service.getLedger({}, null)

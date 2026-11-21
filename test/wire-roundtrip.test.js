@@ -39,9 +39,6 @@ async function serviceWithOneFailure() {
     async readSession() {
       return { inheritedEventCount: 0, events: [] }
     },
-    async readTitle() {
-      return ''
-    },
   }
   const config = { ...CONFIG_DEFAULTS, ignorePatterns: [] }
   const scanner = createScanner({ source, store, config, bootId: 'wire' })
@@ -76,9 +73,6 @@ test('an empty ledger also validates', async () => {
     },
     async readSession() {
       return { inheritedEventCount: 0, events: [] }
-    },
-    async readTitle() {
-      return ''
     },
   }
   const config = { ...CONFIG_DEFAULTS }

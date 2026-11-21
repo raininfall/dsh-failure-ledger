@@ -6,6 +6,7 @@ import { join } from 'node:path'
 
 import { apply, inject, name } from '../index.js'
 import { schemaFor } from '../lib/schemas.js'
+import { TYPERT } from '../typert.js'
 
 function fakeContext() {
   const provided = new Map()
@@ -13,7 +14,12 @@ function fakeContext() {
   const query = {
     listSessions: async () => [],
     readSession: async () => ({ session: {}, inheritedEventCount: 0, capturedThroughSeq: 0, events: [] }),
-    readTitleSnapshot: async () => ({ session: {}, title: { title: 'T' } }),
+    observeSession: async () => ({
+      header: {},
+      inheritedEventCount: 0,
+      events: [],
+      [Symbol.dispose]() {},
+    }),
   }
   const persistence = { stat: async () => undefined }
   const ctx = {
@@ -33,6 +39,25 @@ test('the entry declares its name, injection and apply', () => {
   assert.equal(name, 'failure-ledger')
   assert.deepEqual(inject, ['sessionQuery', 'sessionPersistence'])
   assert.equal(typeof apply, 'function')
+})
+
+test('the provided service carries the gateway binding that authorizes remote calls', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'failure-ledger-'))
+  try {
+    const ctx = fakeContext()
+    await apply(ctx, { ledgerPath: join(directory, 'ledger.json'), scanOnStartup: false })
+    const service = ctx.provided.get('failureLedger')
+    const binding = service.typertRemote
+    // The gateway refuses every `failureLedger/*` call unless all three fields
+    // point back at the receiver it resolved for that service key.
+    assert.ok(binding !== undefined, 'the service must expose a typertRemote binding')
+    assert.equal(binding.service, service)
+    assert.equal(binding.serviceKey, 'failureLedger')
+    assert.equal(binding.namespace, TYPERT.invocations[0].namespace)
+    assert.equal(Object.isFrozen(binding), true)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 test('apply provides the service and creates the ledger file', async () => {

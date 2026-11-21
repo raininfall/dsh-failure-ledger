@@ -130,7 +130,14 @@ async function apply(ctx) {
   }
   ctx.effect(() => () => disposeLocale(), 'failure-ledger: locale dictionaries')
 
-  const service = await mountRemote(ctx)
+  let service
+  try {
+    service = await mountRemote(ctx)
+  } catch (error) {
+    // A rejected mount must not cost the user the panel: both slot entries
+    // still register, and the page reports that it has no data.
+    console.warn('[dsh-failure-ledger] remote contribution failed to mount', error)
+  }
 
   ctx.slots.inject('sidebar.panellist', () =>
     ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 50, label: () => translate('panel'), locale: NS }, PanelIcon),

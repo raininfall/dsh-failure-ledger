@@ -3,6 +3,7 @@
   "title": "Tool failure ledger",
   "caption": "Tool and script failures from session logs, grouped by deterministic rules",
   "empty": "No scan results yet",
+  "empty.unmounted": "The ledger service is not mounted — reload the page, and check the browser console if it stays unmounted.",
   "refresh": "Rescan",
   "scanning": "Scanning…",
   "time.never": "never",
@@ -53,5 +54,8 @@
   "detail.empty": "This group has no visible occurrences",
   "detail.untitled": "Untitled session",
   "merge.selected": "{n} selected",
-  "error.action": "Action failed"
+  "error.action": "Action failed",
+  "action.noService": "The ledger service is not mounted",
+  "action.busy": "A scan is already running",
+  "action.done": "Scanned {n} sessions"
 }
