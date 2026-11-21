@@ -1,0 +1,6 @@
+# dsh-failure-ledger bundle patch: one host row over the Web or Desktop profile.
+# The row name resolves from the profile's own node_modules where
+# `plugin_manager install_bundle` installed this package.
+- insert:
+    - id: failure-ledger
+      name: dsh-failure-ledger
