@@ -1,0 +1,19 @@
+{
+  "panel": "失败台账",
+  "title": "工具失败台账",
+  "caption": "来自会话日志的工具与脚本调用失败，按确定性规则分组",
+  "empty": "还没有扫描结果",
+  "refresh": "重新扫描",
+  "scanning": "正在扫描…",
+  "time.now": "刚刚",
+  "time.minutes": "{n} 分钟前",
+  "time.hours": "{n} 小时前",
+  "time.days": "{n} 天前",
+  "kind.error": "工具报错",
+  "kind.exit": "非零退出",
+  "kind.signal": "被信号终止",
+  "kind.timeout": "超时",
+  "kind.job-failed": "后台作业失败",
+  "kind.job-killed": "后台作业被终止",
+  "kind.ptc-error": "子工具报错"
+}

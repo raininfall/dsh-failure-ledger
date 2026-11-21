@@ -16,7 +16,10 @@
       "default": "./typert.js"
     },
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./client": {
+      "default": "./lib/client.js"
+    }
   },
   "scripts": {
     "test": "node --test",
@@ -28,6 +31,9 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
     }
   }
 }

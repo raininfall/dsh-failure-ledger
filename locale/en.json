@@ -1,0 +1,19 @@
+{
+  "panel": "Failure ledger",
+  "title": "Tool failure ledger",
+  "caption": "Tool and script failures from session logs, grouped by deterministic rules",
+  "empty": "No scan results yet",
+  "refresh": "Rescan",
+  "scanning": "Scanning…",
+  "time.now": "just now",
+  "time.minutes": "{n} min ago",
+  "time.hours": "{n} h ago",
+  "time.days": "{n} d ago",
+  "kind.error": "tool error",
+  "kind.exit": "non-zero exit",
+  "kind.signal": "killed by signal",
+  "kind.timeout": "timed out",
+  "kind.job-failed": "job failed",
+  "kind.job-killed": "job killed",
+  "kind.ptc-error": "sub-tool error"
+}
