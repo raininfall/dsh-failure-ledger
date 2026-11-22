@@ -34,11 +34,23 @@ A "Failure ledger" entry appears in the sidebar; clicking it opens the ledger in
 - Filter by tool, error text, kind, or include killed background jobs.
 - Click any column header to sort by it; clicking further headers adds them as lower-priority columns, and clicking an active one reverses that column. The first click away from the default frequency order replaces it. The strip above the table lists the active columns in priority order with a "Clear sort" control. Sort order is not saved across reloads.
 - Click a signature to see the occurrences behind a group, with session title and cwd.
+- "View context" on an occurrence reads that turn's log from the start of the turn up to the failure, trimmed to the `contextMaxChars` budget.
+- "Ignore before now" stops a group's already-recorded failures from counting, so the count restarts from this moment; the group reappears when it fails again.
 - Mute a group to hide it from the default view; unmute from the same row.
 - Select rows and merge them into one target group (same tool and kind only).
 - "Rescan" rescans the sessions that changed since the last pass and reports its progress; delete the ledger file for a full rebuild. The panel also polls in the background.
 
-Preferences (mute and merge) live in the ledger file, so they survive restarts.
+Preferences (mute, merge and baselines) live in the ledger file, so they survive restarts.
+
+## Querying from another plugin
+
+The plugin provides the `failureLedger` service on the host context.
+
+- `ctx.failureLedger.getFailureContext({ sessionId, seq, maxChars })` returns the normalized log of the turn that produced a recorded failure: `{ found, sessionTitle, turn, tool, kind, signature, line, entries, chars, truncated, dropped }`. Each entry is `{ kind, text, name?, callId?, isError? }` with kind `turn`, `user`, `assistant`, `tool`, `result`, `job`, `ptc` or `failure`; the failure entry is always last and never dropped. `maxChars` defaults to `contextMaxChars` and is clamped to it, and the oldest entries are dropped first.
+- `ctx.failureLedger.getGroup(groupId, limit)` returns occurrences that now also carry `turn`, `step` and, when recorded, `exitCode`, `signal`, `timeoutMs` and `errorCode`.
+- `ctx.failureLedger.updatePrefs({ since: [{ groupId, before }], unsince: [groupId] })` sets a baseline: failures recorded at or before `before` stop counting toward the group's count, the totals and its occurrences, and the group disappears until it fails again. `unsince` removes the baseline. A baseline set on a merged source is stored on its merge target.
+
+`getLedger` keeps its existing query fields; its rows and totals already reflect baselines.
 
 ## Configuration
 
