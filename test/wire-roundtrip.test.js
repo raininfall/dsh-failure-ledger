@@ -94,3 +94,15 @@ test('an empty ledger also validates', async () => {
   assert.doesNotThrow(() => schemaFor('LedgerResult').create().parse(ledger))
   assert.deepEqual(ledger.groups, [])
 })
+
+test('ContextQuery and FailureContext validate over the wire', () => {
+  const query = schemaFor('ContextQuery').create()
+  assert.doesNotThrow(() => query.parse({ sessionId: 's1', seq: 3 }))
+  assert.doesNotThrow(() => query.parse({ sessionId: 's1', seq: 3, maxChars: 500 }))
+  assert.throws(() => query.parse({ seq: 3 }))
+  const context = schemaFor('FailureContext').create()
+  assert.doesNotThrow(() => context.parse({
+    found: true, sessionId: 's1', seq: 3, sessionTitle: 'demo', turn: 1, tool: 'bash', kind: 'error',
+    signature: 'boom', line: 'Error: boom', entries: [{ kind: 'tool', text: 'x' }], chars: 1, truncated: false, dropped: 0,
+  }))
+})

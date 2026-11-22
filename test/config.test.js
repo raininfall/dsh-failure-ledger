@@ -13,6 +13,7 @@ test('CONFIG_DEFAULTS pins the documented values', () => {
     includePtcDispatch: true,
     ignorePatterns: [],
     maxSignatureChars: 160,
+    contextMaxChars: 20000,
   })
 })
 
@@ -65,4 +66,11 @@ test('normalizeConfig compiles ignorePatterns once and freezes the result', () =
 test('normalizeConfig accepts a null or undefined raw config', () => {
   assert.equal(normalizeConfig(undefined).retentionDays, 90)
   assert.equal(normalizeConfig(null).retentionDays, 90)
+})
+
+test('contextMaxChars is validated from cordis.yml', () => {
+  assert.equal(normalizeConfig({}).contextMaxChars, 20000)
+  assert.equal(normalizeConfig({ contextMaxChars: 5000 }).contextMaxChars, 5000)
+  assert.throws(() => normalizeConfig({ contextMaxChars: 10 }), /contextMaxChars/)
+  assert.throws(() => normalizeConfig({ contextMaxChars: 1.5 }), /contextMaxChars/)
 })

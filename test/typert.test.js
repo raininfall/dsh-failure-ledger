@@ -14,10 +14,10 @@ test('the manifest is addressed to this package and face', () => {
   assert.ok(Array.isArray(TYPERT.schemas))
 })
 
-test('four invocations are exposed under the failureLedger service', () => {
-  assert.equal(TYPERT.invocations.length, 4)
+test('five invocations are exposed under the failureLedger service', () => {
+  assert.equal(TYPERT.invocations.length, 5)
   const methods = TYPERT.invocations.map((invocation) => invocation.method)
-  assert.deepEqual(methods.sort(), ['getGroup', 'getLedger', 'refresh', 'updatePrefs'])
+  assert.deepEqual(methods.sort(), ['getFailureContext', 'getGroup', 'getLedger', 'refresh', 'updatePrefs'])
   for (const invocation of TYPERT.invocations) {
     assert.equal(invocation.id, `dsh-failure-ledger#failureLedger/${invocation.method}`)
     assert.equal(invocation.service, 'failureLedger')
@@ -48,6 +48,9 @@ test('optional parameters accept undefined while required ones do not', () => {
   assert.deepEqual(getLedger.parameters.map((parameter) => parameter.name), ['query', 'knownRevision'])
   assert.equal(getLedger.parameters[0].acceptsUndefined, true)
   assert.equal(getLedger.parameters[1].acceptsUndefined, true)
+  const context = TYPERT.invocations.find((invocation) => invocation.method === 'getFailureContext')
+  assert.deepEqual(context.parameters.map((parameter) => parameter.name), ['input'])
+  assert.equal(context.parameters[0].acceptsUndefined, undefined)
   const getGroup = TYPERT.invocations.find((invocation) => invocation.method === 'getGroup')
   assert.deepEqual(getGroup.parameters.map((parameter) => parameter.name), ['groupId', 'limit'])
   assert.equal(getGroup.parameters[0].acceptsUndefined, undefined)
@@ -59,7 +62,7 @@ test('the model documents the failureLedger staff service', () => {
   assert.equal(service.key, 'failureLedger')
   assert.equal(service.exportName, 'createFailureLedgerService')
   assert.deepEqual(service.tags, [])
-  assert.equal(service.members.length, 4)
+  assert.equal(service.members.length, 5)
   for (const member of service.members) {
     assert.equal(member.kind, 'method')
     assert.equal(typeof member.signature, 'string')

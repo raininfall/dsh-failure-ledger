@@ -72,6 +72,7 @@ export const TYPERT = {
       'GroupResult',
       'Read one group and its newest occurrences',
     ),
+    invocation('getFailureContext', [rpcParam('input', 'ContextQuery')], 'FailureContext', 'Read the log around one failure'),
     invocation('refresh', [rpcParam('full', 'Flag', true)], 'ScanSummary', 'Run one scan pass now'),
     invocation('updatePrefs', [rpcParam('patch', 'PrefsPatch')], 'UpdatePrefsResult', 'Change ignore and merge decisions'),
   ],
@@ -87,6 +88,7 @@ export const TYPERT = {
         members: [
           member('getLedger', 'getLedger(query: LedgerQuery | null, knownRevision: number | null): Promise<LedgerResult>', 'Read the grouped failure ledger'),
           member('getGroup', 'getGroup(groupId: string, limit: number): Promise<GroupResult>', 'Read one group and its newest occurrences'),
+          member('getFailureContext', 'getFailureContext(input: ContextQuery): Promise<FailureContext>', 'Read the log around one failure'),
           member('refresh', 'refresh(full: boolean): Promise<ScanSummary>', 'Run one scan pass now'),
           member('updatePrefs', 'updatePrefs(patch: PrefsPatch): Promise<UpdatePrefsResult>', 'Change ignore and merge decisions'),
         ],

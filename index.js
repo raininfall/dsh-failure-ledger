@@ -110,8 +110,9 @@ export async function apply(ctx, rawConfig) {
   const isNew = !existsSync(ledgerPath)
   const store = await openLedger(ledgerPath, { bootId, rulesVersion: RULES_VERSION })
   if (isNew) await store.save()
-  const scanner = createScanner({ source: createSource(ctx), store, config, bootId })
-  const service = createService({ store, scanner, config })
+  const source = createSource(ctx)
+  const scanner = createScanner({ source, store, config, bootId })
+  const service = createService({ store, scanner, config, readSession: source.readSession })
 
   // The gateway reaches a Host service only through this visible binding. Without
   // it every `failureLedger/*` call is refused as "no visible typertRemote
