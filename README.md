@@ -31,7 +31,7 @@ That writes a `link:` dependency and an entry into the active profile's bundle l
 A "Failure ledger" entry appears in the sidebar; clicking it opens the ledger in the main area.
 
 - Filter by tool, error text, kind, or include killed background jobs.
-- Click any column header to sort by it; click the same header again to reverse the direction. Sort order is not saved across reloads.
+- Click any column header to sort by it; clicking further headers adds them as lower-priority columns, and clicking an active one reverses that column. The first click away from the default frequency order replaces it. The strip above the table lists the active columns in priority order with a "Clear sort" control. Sort order is not saved across reloads.
 - Click a signature to see the occurrences behind a group, with session title and cwd.
 - Mute a group to hide it from the default view; unmute from the same row.
 - Select rows and merge them into one target group (same tool and kind only).
