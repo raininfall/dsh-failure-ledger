@@ -46,7 +46,7 @@ function PanelIcon(props) {
 /**
  * Build the query the host understands from the panel's filter state.
  * @param filters - Filter state.
- * @param sort - `{ key, dir }` from the header controls.
+ * @param sort - Sort columns in priority order.
  * @returns A query object without empty fields.
  */
 function queryOf(filters, sort) {
@@ -79,27 +79,84 @@ function defaultDirection(key) {
   return key === 'count' || key === 'sessionCount' || key === 'lastAt' ? 'desc' : 'asc'
 }
 
+/** Sort columns in priority order before the user picks any. */
+const DEFAULT_SORT = Object.freeze([Object.freeze({ key: 'count', dir: 'desc' })])
+
 /**
- * The sort state after clicking one column: flip the active column, otherwise
- * switch to the clicked column in its default direction.
- * @param sort - Current `{ key, dir }`.
- * @param key - Clicked column key.
- * @returns The next `{ key, dir }`.
+ * Locale key of one sort column's header label.
+ * @param key - Sort key.
+ * @returns The locale key.
  */
-function nextSort(sort, key) {
-  if (sort !== undefined && sort.key === key) return { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
-  return { key, dir: defaultDirection(key) }
+function labelOf(key) {
+  const column = SORTABLE.find((entry) => entry.key === key)
+  return column === undefined ? key : column.label
+}
+
+/**
+ * Whether the requested columns are still the default frequency order.
+ * @param columns - Sort columns in priority order.
+ * @returns Whether every column matches `DEFAULT_SORT`.
+ */
+function isDefaultSort(columns) {
+  return (
+    Array.isArray(columns) &&
+    columns.length === DEFAULT_SORT.length &&
+    columns.every((column, index) => column.key === DEFAULT_SORT[index].key && column.dir === DEFAULT_SORT[index].dir)
+  )
+}
+
+/**
+ * The sort columns after clicking one header: flip a column already in the
+ * list in place, otherwise append it in its default direction. The first click
+ * away from the default order replaces that default instead of stacking behind
+ * it, so the table takes the clicked column's order immediately.
+ * @param columns - Sort columns in priority order.
+ * @param key - Clicked column key.
+ * @returns The next sort columns.
+ */
+function nextSort(columns, key) {
+  const current = Array.isArray(columns) ? columns : []
+  const index = current.findIndex((column) => column.key === key)
+  if (index >= 0) {
+    return current.map((column, at) => (at === index ? { key, dir: column.dir === 'desc' ? 'asc' : 'desc' } : column))
+  }
+  return [...(isDefaultSort(current) ? [] : current), { key, dir: defaultDirection(key) }]
 }
 
 /**
  * What one header reports to assistive technology and renders beside its label.
- * @param sort - Current `{ key, dir }`.
+ * @param columns - Sort columns in priority order.
  * @param key - Column key.
  * @returns `aria-sort` value and the arrow glyph (empty when inactive).
  */
-function sortStateOf(sort, key) {
-  if (sort === undefined || sort.key !== key) return { ariaSort: 'none', arrow: '' }
-  return sort.dir === 'desc' ? { ariaSort: 'descending', arrow: '↓' } : { ariaSort: 'ascending', arrow: '↑' }
+function sortStateOf(columns, key) {
+  const column = Array.isArray(columns) ? columns.find((entry) => entry.key === key) : undefined
+  if (column === undefined) return { ariaSort: 'none', arrow: '' }
+  return column.dir === 'desc' ? { ariaSort: 'descending', arrow: '↓' } : { ariaSort: 'ascending', arrow: '↑' }
+}
+
+/**
+ * The active sort columns in priority order, with a control that restores the
+ * default order. Renders nothing while the default is in effect.
+ * @param props - `t`, sort columns and the reset callback.
+ * @returns The sort strip, or null for the default order.
+ */
+function SortBar(props) {
+  const t = props.t
+  if (isDefaultSort(props.sort)) return null
+  return h(
+    'div',
+    { className: 'dsh-fl-sortbar' },
+    h('span', { className: 'dsh-fl-sortbar-label' }, t('sort.label')),
+    props.sort.map((column, index) =>
+      h(
+        'span',
+        { key: column.key, className: 'dsh-fl-chip dsh-fl-sort-chip' },
+        (props.sort.length > 1 ? `${index + 1}. ` : '') + t(labelOf(column.key)) + ' ' + sortStateOf(props.sort, column.key).arrow,
+      ),
+    ),
+    h('button', { type: 'button', className: 'dsh-fl-link', onClick: props.onClear }, t('sort.clear')),
+  )
 }
 
 /**
@@ -248,7 +305,7 @@ function GroupTable(props) {
             { key: column.key, scope: 'col', 'aria-sort': state.ariaSort },
             h(
               'button',
-              { type: 'button', className: 'dsh-fl-sort', onClick: () => props.onSort(column.key) },
+              { type: 'button', className: 'dsh-fl-sort', title: t('sort.hint'), onClick: () => props.onSort(column.key) },
               t(column.label),
               state.arrow.length === 0 ? null : h('span', { className: 'dsh-fl-arrow', 'aria-hidden': 'true' }, state.arrow),
             ),
@@ -411,7 +468,7 @@ function Page(props) {
   const t = typeof props?.t === 'function' ? props.t : (key) => key
   const service = props?.service
   const [filters, setFilters] = React.useState({ tool: '', text: '', kinds: [], includeJobKilled: false, hideIgnored: true })
-  const [sort, setSort] = React.useState({ key: 'count', dir: 'desc' })
+  const [sort, setSort] = React.useState(DEFAULT_SORT)
   const [selected, setSelected] = React.useState([])
   const [target, setTarget] = React.useState('')
   const [activeId, setActiveId] = React.useState(undefined)
@@ -538,27 +595,36 @@ function Page(props) {
         ? h('div', { className: 'dsh-failure-ledger-empty' }, h(PanelIcon, { size: 28 }), h('p', null, service === undefined ? t('empty.unmounted') : t(state.loading ? 'scanning' : 'empty')))
         : h(
             'div',
-            { className: 'dsh-fl-body' },
-            h('div', { className: 'dsh-fl-table-wrap' }, h(GroupTable, {
-              t,
-              groups,
-              selected,
-              activeId,
-              sort,
-              onSort: (key) => setSort(nextSort(sort, key)),
-              onToggle: toggleSelected,
-              onOpen: setActiveId,
-              onMute: (groupId, mute) => changePreferences(mute ? { ignore: [groupId] } : { unignore: [groupId] }),
-            })),
-            activeId === undefined ? null : h(GroupDetail, {
-              t,
-              group: detail,
-              onClose: () => {
-                setActiveId(undefined)
-                setDetail(undefined)
-              },
-              onCopySession: copySession,
-            }),
+            { className: 'dsh-fl-sorted' },
+            h(SortBar, { t, sort, onClear: () => setSort(DEFAULT_SORT) }),
+            h(
+              'div',
+              { className: 'dsh-fl-body' },
+              h(
+                'div',
+                { className: 'dsh-fl-table-wrap' },
+                h(GroupTable, {
+                  t,
+                  groups,
+                  selected,
+                  activeId,
+                  sort,
+                  onSort: (key) => setSort(nextSort(sort, key)),
+                  onToggle: toggleSelected,
+                  onOpen: setActiveId,
+                  onMute: (groupId, mute) => changePreferences(mute ? { ignore: [groupId] } : { unignore: [groupId] }),
+                }),
+              ),
+              activeId === undefined ? null : h(GroupDetail, {
+                t,
+                group: detail,
+                onClose: () => {
+                  setActiveId(undefined)
+                  setDetail(undefined)
+                },
+                onCopySession: copySession,
+              }),
+            ),
           ),
     actionError === undefined
       ? null

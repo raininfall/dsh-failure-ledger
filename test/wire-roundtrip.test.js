@@ -59,12 +59,17 @@ test('every remote result validates against the schema the client is told about'
   }
 })
 
-test('LedgerQuery carries a key and direction and rejects the old string form', () => {
+test('LedgerQuery carries ordered sort columns and rejects the old forms', () => {
   const schema = schemaFor('LedgerQuery').create()
-  assert.doesNotThrow(() => schema.parse({ sort: { key: 'kind', dir: 'asc' } }))
+  assert.doesNotThrow(() => schema.parse({ sort: [{ key: 'kind', dir: 'asc' }] }))
+  assert.doesNotThrow(() =>
+    schema.parse({ sort: [{ key: 'tool', dir: 'asc' }, { key: 'count', dir: 'desc' }] }),
+  )
+  assert.doesNotThrow(() => schema.parse({ sort: [] }))
   assert.throws(() => schema.parse({ sort: 'count' }))
-  assert.throws(() => schema.parse({ sort: { key: 'nope', dir: 'asc' } }))
-  assert.throws(() => schema.parse({ sort: { key: 'count', dir: 'sideways' } }))
+  assert.throws(() => schema.parse({ sort: { key: 'count', dir: 'desc' } }))
+  assert.throws(() => schema.parse({ sort: [{ key: 'nope', dir: 'asc' }] }))
+  assert.throws(() => schema.parse({ sort: [{ key: 'count', dir: 'sideways' }] }))
 })
 
 test('an empty ledger also validates', async () => {

@@ -205,17 +205,63 @@ test('tool and signature sort in code-unit order', async () => {
     ]),
   }
   const { service } = makeService({ sessions })
-  const asc = await service.getLedger({ sort: { key: 'tool', dir: 'asc' } })
+  const asc = await service.getLedger({ sort: [{ key: 'tool', dir: 'asc' }] })
   assert.deepEqual(asc.groups.map((group) => group.tool), ['alpha', 'mike', 'zeta'])
-  const desc = await service.getLedger({ sort: { key: 'signature', dir: 'desc' } })
+  const desc = await service.getLedger({ sort: [{ key: 'signature', dir: 'desc' }] })
   assert.deepEqual(desc.groups.map((group) => group.signature), ['c-line', 'b-line', 'a-line'])
+})
+
+test('a second column breaks ties left by the first', async () => {
+  const sessions = {
+    s1: entry([
+      failure(BASE - 100, 'bash', 'exit', 'x'),
+      failure(BASE - 101, 'bash', 'exit', 'y'),
+      failure(BASE - 102, 'bash', 'timeout', 'z'),
+      failure(BASE - 200, 'alpha', 'error', 'w'),
+    ]),
+  }
+  const { service } = makeService({ sessions })
+  const ledger = await service.getLedger({
+    sort: [{ key: 'tool', dir: 'asc' }, { key: 'kind', dir: 'desc' }],
+  })
+  assert.deepEqual(
+    ledger.groups.map((group) => `${group.tool}/${group.kind}`),
+    ['alpha/error', 'bash/timeout', 'bash/exit', 'bash/exit'],
+  )
+})
+
+test('each requested column applies its own direction', async () => {
+  const sessions = {
+    s1: entry([
+      failure(BASE - 10, 'bash', 'exit', 'k'),
+      failure(BASE - 11, 'bash', 'exit', 'k'),
+      failure(BASE - 12, 'bash', 'exit', 'k'),
+      failure(BASE - 20, 'bash', 'exit', 'j'),
+      failure(BASE - 30, 'bash', 'timeout', 't'),
+      failure(BASE - 31, 'bash', 'timeout', 't'),
+    ]),
+  }
+  const { service } = makeService({ sessions })
+  const ledger = await service.getLedger({
+    sort: [{ key: 'kind', dir: 'desc' }, { key: 'count', dir: 'asc' }],
+  })
+  assert.deepEqual(
+    ledger.groups.map((group) => `${group.kind}/${group.count}`),
+    ['timeout/2', 'exit/1', 'exit/3'],
+  )
+})
+
+test('an empty sort list falls back to most frequent first', async () => {
+  const { service } = makeService({ sessions: THREE_AND_TWO })
+  const ledger = await service.getLedger({ sort: [] })
+  assert.deepEqual(ledger.groups.map((group) => group.count), [3, 2])
 })
 
 test('numeric columns sort both ways', async () => {
   const { service } = makeService({ sessions: THREE_AND_TWO })
-  const asc = await service.getLedger({ sort: { key: 'count', dir: 'asc' } })
+  const asc = await service.getLedger({ sort: [{ key: 'count', dir: 'asc' }] })
   assert.deepEqual(asc.groups.map((group) => group.count), [2, 3])
-  const sessions = await service.getLedger({ sort: { key: 'sessionCount', dir: 'desc' } })
+  const sessions = await service.getLedger({ sort: [{ key: 'sessionCount', dir: 'desc' }] })
   assert.deepEqual(sessions.groups.map((group) => group.sessionCount), [2, 1])
 })
 
@@ -229,7 +275,7 @@ test('kind sorts by the canonical kind order, unknown kinds last', async () => {
     ]),
   }
   const { service } = makeService({ sessions })
-  const asc = await service.getLedger({ sort: { key: 'kind', dir: 'asc' } })
+  const asc = await service.getLedger({ sort: [{ key: 'kind', dir: 'asc' }] })
   assert.deepEqual(asc.groups.map((group) => group.kind), ['error', 'exit', 'timeout', 'mystery'])
 })
 
@@ -245,7 +291,7 @@ test('equal primary keys order by count before lastAt', async () => {
     ]),
   }
   const { service } = makeService({ sessions })
-  const ledger = await service.getLedger({ sort: { key: 'tool', dir: 'asc' } })
+  const ledger = await service.getLedger({ sort: [{ key: 'tool', dir: 'asc' }] })
   assert.deepEqual(ledger.groups.map((group) => group.count), [3, 1])
 })
 
@@ -265,7 +311,7 @@ test('equal primary keys order by lastAt', async () => {
     ]),
   }
   const { service } = makeService({ sessions })
-  const ledger = await service.getLedger({ sort: { key: 'tool', dir: 'asc' } })
+  const ledger = await service.getLedger({ sort: [{ key: 'tool', dir: 'asc' }] })
   assert.deepEqual(ledger.groups.map((group) => group.signature), [newer.signature, older.signature])
 })
 
@@ -279,7 +325,7 @@ test('equal primary keys order by groupId', async () => {
     s1: entry(pairs.map((pair) => failure(BASE - 100, 'bash', 'exit', pair.signature))),
   }
   const { service } = makeService({ sessions })
-  const ledger = await service.getLedger({ sort: { key: 'tool', dir: 'asc' } })
+  const ledger = await service.getLedger({ sort: [{ key: 'tool', dir: 'asc' }] })
   const ids = ledger.groups.map((group) => group.groupId)
   assert.deepEqual(ids, [pairs[1].groupId, pairs[0].groupId])
   assert.deepEqual(ids, [...ids].sort())
@@ -296,6 +342,6 @@ test('limit applies after sorting, not before', async () => {
     ]),
   }
   const { service } = makeService({ sessions })
-  const top = await service.getLedger({ sort: { key: 'tool', dir: 'asc' }, limit: 2 })
+  const top = await service.getLedger({ sort: [{ key: 'tool', dir: 'asc' }], limit: 2 })
   assert.deepEqual(top.groups.map((group) => group.tool), ['alpha', 'mike'])
 })
