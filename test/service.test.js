@@ -419,3 +419,17 @@ test('a poll with a matching revision still counts post-baseline totals', async 
   assert.equal(ledger.unchanged, true)
   assert.equal(ledger.totals.failures, 3)
 })
+
+test('getGroup carries the failure details needed to inspect it', async () => {
+  const sessions = {
+    s1: entry([failure(BASE - 1000, 'bash', 'exit', 'boom', { turn: 4, step: 2, exitCode: 127, callId: 'c1' })]),
+  }
+  const { service } = makeService({ sessions })
+  const group = await service.getGroup(groupIdOf('bash', 'exit', 'boom'))
+  const [occurrence] = group.occurrences
+  assert.equal(occurrence.turn, 4)
+  assert.equal(occurrence.step, 2)
+  assert.equal(occurrence.exitCode, 127)
+  assert.equal(occurrence.callId, 'c1')
+  assert.equal(occurrence.signal, undefined)
+})
