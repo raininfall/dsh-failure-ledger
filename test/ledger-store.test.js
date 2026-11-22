@@ -17,7 +17,7 @@ test('emptyLedger carries the documented shape', () => {
   assert.equal(ledger.rulesVersion, 3)
   assert.equal(ledger.revision, 0)
   assert.equal(ledger.bootId, 'boot-1')
-  assert.deepEqual(ledger.prefs, { ignored: [], merge: {} })
+  assert.deepEqual(ledger.prefs, { ignored: [], merge: {}, since: {} })
   assert.deepEqual(ledger.sessions, {})
 })
 
@@ -28,7 +28,7 @@ test('a missing ledger file opens as an empty clean ledger', async () => {
   assert.equal(store.data.revision, 0)
   assert.equal(store.data.bootId, 'boot-1')
   assert.equal(store.isDirty(), false)
-  assert.deepEqual(store.data.prefs, { ignored: [], merge: {} })
+  assert.deepEqual(store.data.prefs, { ignored: [], merge: {}, since: {} })
 })
 
 test('save() bumps revision and leaves no temporary file behind', async () => {
@@ -65,7 +65,7 @@ test('a corrupt ledger file is preserved and replaced by an empty ledger', async
 
 test('a newer schemaVersion is rejected instead of misread', async () => {
   const { path } = await tempLedgerPath()
-  await writeFile(path, JSON.stringify({ schemaVersion: 2, revision: 1, sessions: {}, prefs: { ignored: [], merge: {} } }))
+  await writeFile(path, JSON.stringify({ schemaVersion: 2, revision: 1, sessions: {}, prefs: { ignored: [], merge: {}, since: {} } }))
   await assert.rejects(() => openLedger(path, { bootId: 'boot-3', rulesVersion: 1 }), /schemaVersion 2 is newer/)
 })
 
@@ -74,7 +74,14 @@ test('a partial older file is completed with defaults', async () => {
   await writeFile(path, JSON.stringify({ schemaVersion: 1, revision: 5, bootId: 'old' }))
   const store = await openLedger(path, { bootId: 'boot-4', rulesVersion: 1 })
   assert.equal(store.data.revision, 5)
-  assert.deepEqual(store.data.prefs, { ignored: [], merge: {} })
+  assert.deepEqual(store.data.prefs, { ignored: [], merge: {}, since: {} })
   assert.deepEqual(store.data.sessions, {})
   assert.equal(store.data.bootId, 'old')
+})
+
+test('an older ledger gains an empty since map', async () => {
+  const { path } = await tempLedgerPath()
+  await writeFile(path, JSON.stringify({ schemaVersion: 1, revision: 0, sessions: {}, prefs: { ignored: [], merge: {} } }))
+  const store = await openLedger(path, { bootId: 'b', rulesVersion: 1 })
+  assert.deepEqual(store.data.prefs.since, {})
 })

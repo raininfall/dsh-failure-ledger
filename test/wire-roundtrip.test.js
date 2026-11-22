@@ -106,3 +106,10 @@ test('ContextQuery and FailureContext validate over the wire', () => {
     signature: 'boom', line: 'Error: boom', entries: [{ kind: 'tool', text: 'x' }], chars: 1, truncated: false, dropped: 0,
   }))
 })
+
+test('PrefsPatch carries baseline operations and rejects bad times', () => {
+  const schema = schemaFor('PrefsPatch').create()
+  assert.doesNotThrow(() => schema.parse({ since: [{ groupId: 'g1', before: 10 }] }))
+  assert.doesNotThrow(() => schema.parse({ unsince: ['g1'] }))
+  assert.throws(() => schema.parse({ since: [{ groupId: 'g1', before: 'soon' }] }))
+})

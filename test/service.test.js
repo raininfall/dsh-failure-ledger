@@ -345,3 +345,77 @@ test('limit applies after sorting, not before', async () => {
   const top = await service.getLedger({ sort: [{ key: 'tool', dir: 'asc' }], limit: 2 })
   assert.deepEqual(top.groups.map((group) => group.tool), ['alpha', 'mike'])
 })
+
+test('a baseline drops failures recorded before it', async () => {
+  const boom = groupIdOf('bash', 'exit', 'boom')
+  const { service } = makeService({ sessions: THREE_AND_TWO, prefs: { ignored: [], merge: {}, since: { [boom]: BASE - 2000 } } })
+  const ledger = await service.getLedger()
+  const bash = ledger.groups.find((group) => group.signature === 'boom')
+  assert.equal(bash.count, 1)
+  assert.equal(ledger.totals.failures, 3)
+})
+
+test('a group with only pre-baseline failures disappears', async () => {
+  const gone = groupIdOf('edit', 'error', 'gone')
+  const { service } = makeService({ sessions: THREE_AND_TWO, prefs: { ignored: [], merge: {}, since: { [gone]: BASE } } })
+  const ledger = await service.getLedger()
+  assert.equal(ledger.groups.some((group) => group.signature === 'gone'), false)
+  assert.equal(ledger.totals.failures, 3)
+})
+
+test('no baseline keeps every failure', async () => {
+  const { service } = makeService({ sessions: THREE_AND_TWO, prefs: { ignored: [], merge: {}, since: {} } })
+  const ledger = await service.getLedger()
+  assert.equal(ledger.totals.failures, 5)
+})
+
+test('a baseline on a merged target also drops its sources', async () => {
+  const boom = groupIdOf('bash', 'exit', 'boom')
+  const gone = groupIdOf('edit', 'error', 'gone')
+  const { service } = makeService({
+    sessions: THREE_AND_TWO,
+    prefs: { ignored: [], merge: { [boom]: gone }, since: { [gone]: BASE - 2000 } },
+  })
+  const ledger = await service.getLedger()
+  assert.equal(ledger.groups.length, 1)
+  assert.equal(ledger.groups[0].count, 2)
+  assert.equal(ledger.totals.failures, 2)
+})
+
+test('a baseline set on a merged source lands on its target', async () => {
+  const boom = groupIdOf('bash', 'exit', 'boom')
+  const gone = groupIdOf('edit', 'error', 'gone')
+  const { service } = makeService({ sessions: THREE_AND_TWO, prefs: { ignored: [], merge: { [boom]: gone }, since: {} } })
+  const updated = await service.updatePrefs({ since: [{ groupId: boom, before: BASE - 2000 }] })
+  assert.equal(updated.prefs.since[gone], BASE - 2000)
+  assert.equal(updated.prefs.since[boom], undefined)
+})
+
+test('a baseline hides old occurrences from getGroup but unsince restores them', async () => {
+  const boom = groupIdOf('bash', 'exit', 'boom')
+  const { service, store } = makeService({ sessions: THREE_AND_TWO, prefs: { ignored: [], merge: {}, since: { [boom]: BASE - 2000 } } })
+  const group = await service.getGroup(boom)
+  assert.equal(group.total, 1)
+  assert.equal(group.occurrences.length, 1)
+  const updated = await service.updatePrefs({ unsince: [boom] })
+  assert.deepEqual(updated.prefs.since, {})
+  const restored = await service.getGroup(boom)
+  assert.equal(restored.total, 3)
+  assert.equal(store.data.prefs.since[boom], undefined)
+})
+
+test('updatePrefs sets a baseline on an unknown group and validates the time', async () => {
+  const { service } = makeService({ sessions: THREE_AND_TWO })
+  const updated = await service.updatePrefs({ since: [{ groupId: 'later-group', before: BASE }] })
+  assert.equal(updated.prefs.since['later-group'], BASE)
+  await assert.rejects(() => service.updatePrefs({ since: [{ groupId: 'x', before: 0 }] }), /positive/)
+  await assert.rejects(() => service.updatePrefs({ since: [{ groupId: '', before: BASE }] }), /group id/)
+})
+
+test('a poll with a matching revision still counts post-baseline totals', async () => {
+  const boom = groupIdOf('bash', 'exit', 'boom')
+  const { service, store } = makeService({ sessions: THREE_AND_TWO, prefs: { ignored: [], merge: {}, since: { [boom]: BASE - 2000 } } })
+  const ledger = await service.getLedger({}, store.data.revision)
+  assert.equal(ledger.unchanged, true)
+  assert.equal(ledger.totals.failures, 3)
+})
