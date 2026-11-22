@@ -80,4 +80,14 @@ test('each occurrence offers its context and the viewer renders the entries', ()
   })
   assert.equal(JSON.stringify(withContext).includes('npm test'), true)
   assert.equal(JSON.stringify(withContext).includes('context.truncated'), true)
+  const failed = load().GroupDetail({
+    t,
+    group,
+    onClose() {},
+    onCopySession() {},
+    onContext() {},
+    onCloseContext() {},
+    context: { loading: false, error: new Error('not found'), entries: [], truncated: false, dropped: 0, chars: 0 },
+  })
+  assert.equal(JSON.stringify(failed).includes('context.failed'), true)
 })
