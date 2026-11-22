@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "description": "Deterministic tool-failure ledger for DeepSeek Harness sessions.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raininfall/dsh-failure-ledger.git"
+  },
+  "homepage": "https://github.com/raininfall/dsh-failure-ledger#readme",
+  "bugs": {
+    "url": "https://github.com/raininfall/dsh-failure-ledger/issues"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=24.9.0"

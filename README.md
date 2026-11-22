@@ -18,10 +18,11 @@ Grouping is `sha1(tool + kind + signature)` over a normalized error line: paths 
 
 ## Install
 
-From a checkout, install the package directory as a bundle:
+Clone the repository, then install the package directory as a bundle:
 
 ```
-plugin_manager install_bundle target=/Users/rain/lab/dsh-failure-ledger
+git clone https://github.com/raininfall/dsh-failure-ledger
+plugin_manager install_bundle target=<path to that checkout>
 ```
 
 That writes a `link:` dependency and an entry into the active profile's bundle list. A restart is required the first time; afterwards the client half picks up rebuilt bundles on reload.
