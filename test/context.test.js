@@ -34,6 +34,24 @@ test('context starts at the turn holding the failure and keeps arguments verbati
   assert.equal(around.entries[4].text, 'Error: build failed')
 })
 
+test('every renderable event kind becomes one entry and the rest are skipped', () => {
+  const events = [
+    event(0, 'turn/start', { turn: 1 }),
+    event(1, 'user/message', { content: text('why') }),
+    event(2, 'assistant/message', { turn: 1, step: 1, message: { content: text('because') }, stream: { stage: 'end' } }),
+    event(3, 'job/settled', { detail: 'job 7 failed', label: 'test', status: 'failed' }),
+    event(4, 'tool/ptc-dispatch', { name: 'read', isError: true, content: text('nope'), subCallId: 's1' }),
+    event(5, 'turn/end', {}),
+  ]
+  const around = contextAround(events, 4, undefined)
+  assert.deepEqual(around.entries.map((entry) => entry.kind), ['turn', 'user', 'assistant', 'job', 'ptc'])
+  assert.equal(around.entries[1].text, 'why')
+  assert.equal(around.entries[2].text, 'because')
+  assert.equal(around.entries[3].text, 'job 7 failed')
+  assert.equal(around.entries[4].name, 'read')
+  assert.equal(around.entries[4].isError, true)
+})
+
 test('an unknown sequence reports not found', () => {
   assert.deepEqual(contextAround(EVENTS, 99, FAILURE), { found: false, turn: 0, entries: [] })
 })
