@@ -354,6 +354,20 @@ function GroupTable(props) {
           h(
             'td',
             { className: 'dsh-fl-select-cell' },
+            group.ignored === true
+              ? null
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dsh-fl-link',
+                    onClick: (event) => {
+                      event.stopPropagation()
+                      props.onBaseline(group.groupId)
+                    },
+                  },
+                  t('action.baseline'),
+                ),
             h(
               'button',
               {
@@ -416,11 +430,49 @@ function GroupDetail(props) {
                         className: 'dsh-fl-link',
                         onClick: () => props.onCopySession(occurrence.sessionId),
                       }, t('action.copySession')),
+                      h('button', {
+                        type: 'button',
+                        className: 'dsh-fl-link',
+                        onClick: () => props.onContext(occurrence),
+                      }, t('action.context')),
                     ),
                     h('code', { className: 'dsh-fl-occurrence-line' }, occurrence.line),
                     h('span', { className: 'dsh-fl-muted' }, occurrence.cwd),
                   ),
                 ),
+              ),
+          props.context === undefined
+            ? null
+            : h(
+                'section',
+                { className: 'dsh-fl-context', 'aria-label': t('context.title') },
+                h(
+                  'header',
+                  { className: 'dsh-fl-context-header' },
+                  h('h3', { className: 'dsh-fl-context-title' }, t('context.title')),
+                  h('button', { type: 'button', className: 'dsh-fl-link', onClick: props.onCloseContext }, t('action.close')),
+                ),
+                props.context.loading === true
+                  ? h('p', { className: 'dsh-fl-muted' }, t('context.loading'))
+                  : props.context.error !== undefined
+                    ? h('p', { className: 'dsh-fl-error', role: 'alert' }, t('context.failed'))
+                    : props.context.entries.length === 0
+                      ? h('p', { className: 'dsh-fl-muted' }, t('context.empty'))
+                      : h(
+                          'div',
+                          { className: 'dsh-fl-context-entries' },
+                          props.context.entries.map((entry, index) =>
+                            h(
+                              'div',
+                              { key: String(index), className: 'dsh-fl-context-entry' },
+                              h('span', { className: 'dsh-fl-context-label dsh-fl-muted' }, entry.name === undefined ? entry.kind : entry.kind + ' · ' + entry.name),
+                              h('pre', { className: 'dsh-fl-context-text' }, entry.text),
+                            ),
+                          ),
+                        ),
+                props.context.truncated === true
+                  ? h('p', { className: 'dsh-fl-muted' }, t('context.truncated').replace('{n}', String(props.context.dropped)))
+                  : null,
               ),
         ),
   )
@@ -476,6 +528,7 @@ function Page(props) {
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState(undefined)
   const [actionMessage, setActionMessage] = React.useState(undefined)
+  const [context, setContext] = React.useState(undefined)
   const state = useLedger(service, queryOf(filters, sort))
   const ledger = state.ledger
   const groups = ledger === undefined ? [] : ledger.groups
@@ -517,6 +570,21 @@ function Page(props) {
       setActionError(error)
     } finally {
       setBusy(false)
+    }
+  }
+
+  /**
+   * Read the log around one occurrence's failure into the viewer.
+   * @param occurrence - Occurrence from the detail panel.
+   */
+  async function loadContext(occurrence) {
+    if (service === undefined) return
+    setContext({ loading: true })
+    try {
+      const value = await service.getFailureContext({ sessionId: occurrence.sessionId, seq: occurrence.seq })
+      setContext({ loading: false, entries: value.entries, truncated: value.truncated, dropped: value.dropped, chars: value.chars })
+    } catch (error) {
+      setContext({ loading: false, error, entries: [], truncated: false, dropped: 0, chars: 0 })
     }
   }
 
@@ -613,6 +681,7 @@ function Page(props) {
                   onToggle: toggleSelected,
                   onOpen: setActiveId,
                   onMute: (groupId, mute) => changePreferences(mute ? { ignore: [groupId] } : { unignore: [groupId] }),
+                  onBaseline: (groupId) => changePreferences({ since: [{ groupId, before: Date.now() }] }),
                 }),
               ),
               activeId === undefined ? null : h(GroupDetail, {
@@ -621,8 +690,12 @@ function Page(props) {
                 onClose: () => {
                   setActiveId(undefined)
                   setDetail(undefined)
+                  setContext(undefined)
                 },
                 onCopySession: copySession,
+                onContext: loadContext,
+                context,
+                onCloseContext: () => setContext(undefined),
               }),
             ),
           ),

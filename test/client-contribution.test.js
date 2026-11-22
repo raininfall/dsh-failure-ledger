@@ -80,7 +80,7 @@ test('the bundle registers one module id and exports apply and inject', () => {
   assert.ok(exports.inject.includes('remote'))
 })
 
-test('apply mounts one contribution covering the four service methods', async () => {
+test('apply mounts one contribution covering the five service methods', async () => {
   const { exports } = loadBundle()
   const { ctx, mounts } = fakeContext()
   await exports.apply(ctx)
@@ -89,7 +89,7 @@ test('apply mounts one contribution covering the four service methods', async ()
   assert.equal(contribution.package, 'dsh-failure-ledger')
   // Values cross a vm realm boundary, so compare by value string, not by prototype.
   const methods = contribution.descriptors.map((descriptor) => descriptor.method).sort().join(',')
-  assert.equal(methods, 'getGroup,getLedger,refresh,updatePrefs')
+  assert.equal(methods, 'getFailureContext,getGroup,getLedger,refresh,updatePrefs')
 })
 
 test('every descriptor declares the namespace and receiver the gateway groups by', async () => {
@@ -120,6 +120,10 @@ test('every descriptor declares the argument count the host validates', async ()
   assert.equal(getGroup.parameters.map((parameter) => parameter.name).join(','), 'groupId,limit')
   assert.equal(getGroup.parameters[0].acceptsUndefined, undefined)
 
+  const getFailureContext = byMethod.get('getFailureContext')
+  assert.equal(getFailureContext.parameters.map((parameter) => parameter.name).join(','), 'input')
+  assert.equal(getFailureContext.parameters[0].acceptsUndefined, undefined)
+
   const refresh = byMethod.get('refresh')
   assert.equal(refresh.parameters.map((parameter) => parameter.name).join(','), 'full')
 
@@ -146,6 +150,9 @@ test('the mounted service resolves Remote results to their value', async () => {
         },
         async getGroup() {
           return { ok: true, value: { occurrences: [] } }
+        },
+        async getFailureContext() {
+          return { ok: true, value: { found: true, entries: [] } }
         },
         async refresh() {
           return { ok: false, error: { code: 'gateway/internal', message: 'scan refused' } }

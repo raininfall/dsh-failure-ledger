@@ -131,6 +131,7 @@ const CONTRIBUTION = {
   descriptors: [
     remoteMethod('getLedger', [rpcParam('query', 'LedgerQuery', jsonCodec(), true), rpcParam('knownRevision', 'Revision', jsonCodec(), true)], 'LedgerResult', 'Read the grouped failure ledger'),
     remoteMethod('getGroup', [rpcParam('groupId', 'GroupId', jsonCodec()), rpcParam('limit', 'Limit', jsonCodec(), true)], 'GroupResult', 'Read one group and its newest occurrences'),
+    remoteMethod('getFailureContext', [rpcParam('input', 'ContextQuery', jsonCodec())], 'FailureContext', 'Read the log around one failure'),
     remoteMethod('refresh', [rpcParam('full', 'Flag', jsonCodec(), true)], 'ScanSummary', 'Run one scan pass now'),
     remoteMethod('updatePrefs', [rpcParam('patch', 'PrefsPatch', jsonCodec())], 'UpdatePrefsResult', 'Change ignore and merge decisions'),
   ],
@@ -156,7 +157,7 @@ function unwrapRemote(result) {
 }
 
 /** Methods the panel calls, in the order the Host manifest declares them. */
-const SERVICE_METHODS = ['getLedger', 'getGroup', 'refresh', 'updatePrefs']
+const SERVICE_METHODS = ['getLedger', 'getGroup', 'getFailureContext', 'refresh', 'updatePrefs']
 
 /**
  * Mount the remote contribution and take ownership of its release.
